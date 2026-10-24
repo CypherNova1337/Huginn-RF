@@ -6,6 +6,7 @@
 #pragma once
 
 #include "wardrive/Wardrive.h"
+#include "lora_sniffer/LoraSniffer.h"
 #include "messenger/Messenger.h"
 #include "ir/Ir.h"
 #include "lorawan_fuzzer/LorawanFuzzer.h"

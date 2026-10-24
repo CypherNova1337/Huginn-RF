@@ -51,6 +51,9 @@ wifi:
   # firmware serves whatever template you put here (it ships no brand spoof).
   portal_ssid: Free_WiFi
   portal_template: /huginn/portal/index.html
+  # Targeted deauth burst size per keypress (hard-capped at 128 in firmware).
+  # Scoped to a single AP you select from the scan list; authorized use only.
+  deauth_burst: 32
 
 ble:
   authorized_ack_required: true

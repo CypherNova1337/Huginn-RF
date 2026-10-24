@@ -8,8 +8,11 @@ enum class Key : uint8_t {
 };
 
 struct KeyEvent {
-    Key  key = Key::None;
-    char ch  = 0;      // valid when key == Key::Char
+    Key  key;
+    char ch;           // valid when key == Key::Char
+    // Explicit ctor so brace-init ({} and {Key::Up, 0}) works under gnu++11,
+    // where a struct with default member initializers is not an aggregate.
+    KeyEvent(Key k = Key::None, char c = 0) : key(k), ch(c) {}
 };
 
 class Input {
