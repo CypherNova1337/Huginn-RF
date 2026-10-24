@@ -1,0 +1,10 @@
+REM Harmless demo payload — opens a text editor and types a banner.
+REM DuckyScript subset supported by modules/badusb (see parser).
+DELAY 1500
+GUI r
+DELAY 400
+STRING notepad
+ENTER
+DELAY 800
+STRING Huginn-RF BadUSB demo — authorized testing only.
+ENTER

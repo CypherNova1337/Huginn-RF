@@ -1,0 +1,9 @@
+# Minimal IR code file (Flipper-style .ir subset parsed by modules/ir).
+Filetype: Huginn IR codes file
+Version: 1
+#
+name: Power_NEC_Generic
+type: raw
+frequency: 38000
+duty_cycle: 0.33
+data: 9000 4500 560 560 560 560 560 1690 560 560 560 560 560 560 560 560 560 1690 560 1690 560 560 560 1690 560 1690 560 1690 560 1690 560 560 560 1690 560 39000

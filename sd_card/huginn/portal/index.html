@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- Evil Portal template. This is a NEUTRAL placeholder. Replace with the page
+     your authorized engagement calls for. Do not impersonate a real brand or
+     organization you are not authorized to represent. Submitted fields POST to
+     /submit and are logged to /huginn/captures/portal_*.log -->
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Network sign-in</title>
+    <style>
+      body{font-family:sans-serif;max-width:420px;margin:40px auto;padding:0 16px}
+      input{width:100%;padding:10px;margin:6px 0;box-sizing:border-box}
+      button{width:100%;padding:12px;font-size:16px}
+    </style>
+  </head>
+  <body>
+    <h2>Network sign-in</h2>
+    <p>Please sign in to access the network.</p>
+    <form method="POST" action="/submit">
+      <input name="user" placeholder="Username or email" autocomplete="off">
+      <input name="pass" type="password" placeholder="Password">
+      <button type="submit">Connect</button>
+    </form>
+  </body>
+</html>
