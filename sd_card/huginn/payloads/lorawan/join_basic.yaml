@@ -1,0 +1,15 @@
+# Join-request fuzz profile for YOUR OWN test LoRaWAN network server.
+# modules/lorawan_fuzzer reads this; it describes which fields to mutate and how.
+# It does NOT contain a target — the target comes from config.yaml and must be
+# flagged target_is_mine: true.
+name: join_basic
+description: Baseline OTAA join-request field mutations for backend parser testing.
+mutations:
+  - field: devnonce
+    strategy: random        # random | increment | fixed | boundary
+  - field: appeui
+    strategy: boundary      # all-zero / all-ff / truncated-length cases
+  - field: deveui
+    strategy: boundary
+  - field: mic
+    strategy: random        # exercise MIC-validation path (should be rejected)

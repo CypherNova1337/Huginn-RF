@@ -1,0 +1,55 @@
+# Huginn-RF configuration — edit on a laptop, drop on the SD card root at /huginn/
+# YAML-lite: 2-space indent, key: value, "- item" lists, # comments. No flow syntax.
+
+core:
+  device_name: huginn-01
+  # Set true only once you understand docs/LEGAL.md. Offensive modules refuse
+  # to transmit while this is false (you'll be prompted on-device instead).
+  authorized_ack: false
+  log_to_sd: true
+  brightness: 160            # 0-255
+
+radio:
+  region: US915              # US915 | EU868 | AS923 | ...
+  frequency_mhz: 915.0
+  tx_power_dbm: 14           # keep legal for your region
+  spreading_factor: 7
+  bandwidth_khz: 125.0
+
+gps:
+  enabled: true
+  baud: 9600
+
+wardrive:
+  # Passive logging of sub-GHz / LoRa pings with GPS, exported as WiGLE CSV.
+  csv_prefix: wardrive
+  min_rssi: -120             # ignore anything weaker
+  dedup_seconds: 30          # don't re-log the same source within N seconds
+
+messenger:
+  # AES-GCM encrypted point-to-point text over the configured frequency.
+  channel: 7
+  # Pre-shared key as 64 hex chars (32 bytes). CHANGE THIS. Empty = prompt on-device.
+  psk_hex: ""
+  callsign: anon
+
+ir:
+  codes_dir: /huginn/ir
+  default_file: tvbgone.ir
+
+lorawan_fuzzer:
+  # BACKEND ROBUSTNESS TEST — your own test network server ONLY.
+  # Will not run unless target_is_mine is true AND server is non-default.
+  target_is_mine: false
+  server: ""                 # e.g. 10.0.0.5  (your ChirpStack / private TTN)
+  max_requests_per_min: 30   # hard rate cap; keep it gentle
+  profile: /huginn/payloads/lorawan/join_basic.yaml
+
+wifi:
+  authorized_ack_required: true
+
+ble:
+  authorized_ack_required: true
+
+badusb:
+  payload_dir: /huginn/payloads/badusb
