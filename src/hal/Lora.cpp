@@ -53,7 +53,7 @@ bool Lora::receive(RxPacket& out) {
         out.len = len;
         out.rssi = s_radio.getRSSI();
         out.snr  = s_radio.getSNR();
-        out.freqErrHz = (uint32_t)s_radio.getFrequencyError();
+        out.freqErrHz = 0;   // SX126x doesn't expose per-packet freq error
         s_radio.startReceive();
         return true;
     }
