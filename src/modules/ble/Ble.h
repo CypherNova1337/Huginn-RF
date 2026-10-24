@@ -1,18 +1,21 @@
 // Ble.h — Bluetooth LE on the ESP32-S3.
 //
-// Implemented: passive BLE device scan (name/address/RSSI). Declared-but-stub:
-// advertisement "spam" and HID keyboard emulation ("BadBLE"). Those are left as
-// hooks because they actively interfere with / inject into other devices —
-// implement only for your own devices in an isolated setting, and log each.
+//   Scan   passive BLE device scan (name/address/RSSI)
+//   HID    "BadBLE" — advertise as a BLE keyboard and run a DuckyScript from SD
+//          against a device you pair with (built with cardputer_adv_full +
+//          HUGINN_ENABLE_BLE_HID). Authorized testing of your own device only.
+//
+// Advertisement "spam" (pairing-popup flooding of every device in range) is a
+// mass-targeting nuisance and is intentionally not shipped.
 #pragma once
 #include "../../core/Module.h"
 #include <vector>
 
 class BleModule : public Module {
 public:
-    const char* name() const override { return "BLE Scan"; }
+    const char* name() const override { return "BLE"; }
     Category    category() const override { return Category::Bluetooth; }
-    const char* description() const override { return "Scan BLE; spam/HID hooks (lab)"; }
+    const char* description() const override { return "Scan devices / HID inject"; }
     bool        requiresAuthorization() const override { return true; }
 
     void enter(Context& ctx) override;
@@ -21,12 +24,18 @@ public:
 
 private:
     struct Dev { String name; String addr; int rssi; };
-    void doScan(Context& ctx);
-
-    // --- Active hooks (NOT implemented; authorized lab use only) ----------
-    void advSpam(Context& ctx);     // TODO: vendor pairing-popup advertisements
-    void hidInject(Context& ctx);   // TODO: emulate a BLE HID keyboard
+    enum class View { Menu, Scan, Hid };
+    View view_ = View::Menu;
+    int  menuSel_ = 0;
 
     std::vector<Dev> devs_;
-    int sel_ = 0;
+    int  scanSel_ = 0;
+    void doScan(Context& ctx);
+    bool loopScan(Context& ctx);
+
+#ifdef HUGINN_ENABLE_BLE_HID
+    bool hidStarted_ = false;
+    bool loopHid(Context& ctx);
+    void runBleScript(Context& ctx, const String& path);
+#endif
 };

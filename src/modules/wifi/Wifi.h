@@ -27,7 +27,7 @@ public:
 private:
     struct Ap { String ssid; uint8_t bssid[6]; int32_t rssi; uint8_t ch; uint8_t enc; };
 
-    enum class View { Menu, Scan, Sniffer, Handshake, Portal };
+    enum class View { Menu, Scan, Sniffer, Handshake, Deauth, Portal, Export };
     View view_ = View::Menu;
     int  menuSel_ = 0;
 
@@ -43,10 +43,20 @@ private:
     void     stopPromiscuous();
     bool     loopSniffer(Context& ctx, bool eapolOnly);
 
+    // --- Targeted deauth (authorized reauth-capture; single scoped BSSID) ---
+    int      deauthTarget_ = -1;   // index into aps_
+    uint32_t deauthSent_ = 0;
+    bool     loopDeauth(Context& ctx);
+    void     sendDeauthBurst(Context& ctx, const Ap& ap);
+
     // --- Evil Portal ---
     bool startPortal(Context& ctx);
     bool loopPortal(Context& ctx);
     void stopPortal();
+
+    // --- Hashcat export: captured EAPOL/PMKID pcap -> .hc22000 ---
+    bool loopExport(Context& ctx);
+    int  exportHandshakes(Context& ctx);   // returns lines written, -1 on error
 
     uint32_t lastUiMs_ = 0;
 };

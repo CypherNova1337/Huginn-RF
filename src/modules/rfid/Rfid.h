@@ -1,7 +1,8 @@
-// Rfid.h — RFID/NFC scaffold. The Cardputer ADV has no onboard reader; attach a
-// PN532 (I2C/SPI) or MFRC522 (SPI) per docs/HARDWARE.md. This module defines a
-// reader-agnostic interface so either can be dropped in. Read/emulate/write are
-// left as hooks to implement against whichever reader you wire up.
+// Rfid.h — 13.56 MHz RFID/NFC via a PN532 on the Grove I2C port. Built with the
+// cardputer_adv_full env (HUGINN_HAS_RFID) and an attached PN532. Reads tag UIDs
+// and dumps Mifare Classic sectors with default keys to the SD card. Without the
+// hardware/build it shows a notice. (Write/clone needs magic cards + known keys
+// and is a bounded follow-up.)
 #pragma once
 #include "../../core/Module.h"
 
@@ -9,7 +10,7 @@ class RfidModule : public Module {
 public:
     const char* name() const override { return "RFID/NFC"; }
     Category    category() const override { return Category::RFID; }
-    const char* description() const override { return "Read/emulate tags (needs reader)"; }
+    const char* description() const override { return "PN532 read / dump tags"; }
     bool        requiresAuthorization() const override { return true; }
 
     void enter(Context& ctx) override;
@@ -17,6 +18,10 @@ public:
 
 private:
     bool readerPresent_ = false;
-    void readTag(Context& ctx);   // TODO: UID + sector dump to SD
-    void emulate(Context& ctx);   // TODO: card emulation (reader-dependent)
+#ifdef HUGINN_HAS_RFID
+    bool initReader(Context& ctx);
+    void readTag(Context& ctx);
+    uint32_t lastReadMs_ = 0;
+    String   lastUid_;
+#endif
 };

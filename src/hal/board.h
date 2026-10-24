@@ -52,3 +52,15 @@
 #define CC1101_PIN_GDO0   9
 #define CC1101_PIN_GDO2  10
 #endif
+
+// ---------------------------------------------------------------------------
+// Optional PN532 RFID/NFC reader on the Grove I2C port (cardputer_adv_full).
+// Verify against your Grove wiring; the Cardputer Grove port is commonly
+// SDA=GPIO2, SCL=GPIO1.
+// ---------------------------------------------------------------------------
+#ifdef HUGINN_HAS_RFID
+#define RFID_I2C_SDA     2
+#define RFID_I2C_SCL     1
+#define RFID_PN532_IRQ   -1   // not wired
+#define RFID_PN532_RESET -1
+#endif

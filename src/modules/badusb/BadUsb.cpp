@@ -54,7 +54,11 @@ void BadUsbModule::listPayloads(Context& ctx) {
     File d = ctx.sd->fs().open(dir.c_str());
     if (!d) return;
     for (File e = d.openNextFile(); e; e = d.openNextFile()) {
-        if (!e.isDirectory()) files_.push_back(String(dir) + "/" + e.name());
+        if (!e.isDirectory()) {
+            String n = e.name();                   // may be full path on some cores
+            int sl = n.lastIndexOf('/'); if (sl >= 0) n = n.substring(sl + 1);
+            files_.push_back(String(dir) + "/" + n);
+        }
         e.close();
     }
     d.close();

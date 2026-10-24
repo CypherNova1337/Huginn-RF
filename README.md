@@ -35,10 +35,11 @@ Early scaffold. What's implemented vs. stubbed:
 | **Encrypted P2P messenger** (AES-GCM over 915 MHz) | `modules/messenger` | ✅ implemented |
 | **IR transmitter** (TV-B-Gone / universal remote) | `modules/ir` | ✅ implemented |
 | LoRaWAN **OTAA join fuzzer** (your own test server) | `modules/lorawan_fuzzer` | 🟡 harness + guards, payload mutators are yours |
-| WiFi: AP scan, sniffer→pcap, EAPOL/PMKID capture, Evil Portal | `modules/wifi` | ✅ implemented (deauth left as gated hook) |
-| BLE (scan / spam / HID) | `modules/ble` | 🟡 interface + scan; spam/HID hooks stubbed |
-| Sub-GHz raw OOK/ASK (CC1101) | `modules/subghz` | 🟡 interface stubbed (needs CC1101, see HARDWARE.md) |
-| RFID/NFC | `modules/rfid` | 🟡 interface stubbed (needs reader module) |
+| WiFi: scan, sniffer→pcap, EAPOL/PMKID capture, **targeted** deauth, Evil Portal, capture verify | `modules/wifi` | ✅ implemented |
+| LoRa raw sniffer → SD log | `modules/lora_sniffer` | ✅ implemented |
+| BLE scan / HID ("BadBLE") | `modules/ble` | ✅ scan; ✅ HID in `full` build |
+| Sub-GHz raw OOK/ASK + RSSI sweep (CC1101) | `modules/subghz` | ✅ in `cc1101` build (needs CC1101, see HARDWARE.md) |
+| RFID/NFC read + Mifare dump (PN532) | `modules/rfid` | ✅ in `full` build (needs PN532, see HARDWARE.md) |
 | BadUSB (HID injection) | `modules/badusb` | 🟡 interface + DuckyScript parser stub |
 
 "🟡 stubbed" modules compile and appear in the menu, but their offensive
@@ -51,20 +52,19 @@ Target feature set (✅ done, 🟡 in progress, ⬜ planned). The goal is everyt
 Bruce/Marauder do on comparable hardware, plus the LoRa/GPS capabilities this
 cap unlocks.
 
-- **WiFi:** ✅ scan, ✅ sniffer→pcap, ✅ EAPOL/PMKID capture, ✅ evil portal,
-  ⬜ beacon spam, ⬜ probe/station mapper, ⬜ targeted deauth (authorized
-  reauth-capture), ⬜ handshake→hashcat `22000` export, ⬜ Wireguard/pivot.
-- **BLE:** ✅ scan, ⬜ HID keyboard ("BadBLE"), ⬜ advertisement spam
-  (rate-limited), ⬜ GATT enumerator.
-- **Sub-GHz (CC1101):** 🟡 scaffold, ⬜ OOK/ASK capture, ⬜ replay, ⬜ protocol
-  decode (OOK remotes), ⬜ frequency/RSSI spectrum view.
+- **WiFi:** ✅ scan, ✅ sniffer→pcap, ✅ EAPOL/PMKID capture, ✅ targeted
+  deauth (bounded, reauth-capture), ✅ capture verify + hashcat recipe,
+  ✅ evil portal, ⬜ probe/station mapper, ⬜ on-device `22000` conversion.
+- **BLE:** ✅ scan, ✅ HID keyboard ("BadBLE", `full` build), ⬜ GATT enumerator.
+- **Sub-GHz (CC1101):** ✅ OOK/ASK capture, ✅ replay, ✅ RSSI sweep,
+  ⬜ protocol decode (de-Manchester known OOK remotes).
 - **LoRa (SX1262, this cap):** ✅ wardrive→WiGLE, ✅ AES messenger,
-  ✅ OTAA join fuzzer, ⬜ raw LoRa sniffer, ⬜ LoRaWAN uplink sniffer,
+  ✅ OTAA join fuzzer, ✅ raw LoRa sniffer, ⬜ LoRaWAN uplink decode,
   ⬜ Meshtastic observer, ⬜ RF spectrum sweep.
 - **IR:** ✅ TX raw/.ir/TV-B-Gone, ⬜ NEC/RC5/SIRC/Samsung encoders,
   ⬜ RX decode (needs external receiver on GPIO).
-- **RFID/NFC:** 🟡 scaffold, ⬜ 13.56 MHz read/clone/write (PN532/RC522),
-  ⬜ 125 kHz, ⬜ emulation/chameleon.
+- **RFID/NFC:** ✅ 13.56 MHz read + Mifare dump (PN532, `full` build),
+  ⬜ write/clone (magic cards), ⬜ 125 kHz, ⬜ emulation/chameleon.
 - **USB/HID:** ✅ BadUSB DuckyScript, ⬜ payload library, ⬜ USB mass-storage.
 - **Platform:** ⬜ scripting engine (run modules from an SD script),
   ⬜ on-device config editor, ⬜ OTA update, ⬜ NRF24 scanner.
@@ -82,8 +82,11 @@ test. See `docs/LEGAL.md`.
 ## Build & flash
 
 ```bash
-# PlatformIO
-pio run -e cardputer_adv            # build
+# PlatformIO — three build profiles
+pio run -e cardputer_adv            # core: WiFi, BLE scan, LoRa suite, IR, BadUSB
+pio run -e cardputer_adv_full       # + BLE HID + RFID (needs PN532)
+pio run -e cardputer_adv_cc1101     # + CC1101 raw sub-GHz
+
 pio run -e cardputer_adv -t upload  # flash over USB-C
 pio device monitor                  # serial console
 ```
