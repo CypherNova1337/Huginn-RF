@@ -35,8 +35,8 @@ Early scaffold. What's implemented vs. stubbed:
 | **Encrypted P2P messenger** (AES-GCM over 915 MHz) | `modules/messenger` | ✅ implemented |
 | **IR transmitter** (TV-B-Gone / universal remote) | `modules/ir` | ✅ implemented |
 | LoRaWAN **OTAA join fuzzer** (your own test server) | `modules/lorawan_fuzzer` | 🟡 harness + guards, payload mutators are yours |
-| WiFi auditing (scan / EAPOL / portal / deauth) | `modules/wifi` | 🟡 interface + scan; attack hooks stubbed |
-| BLE (scan / spam / HID) | `modules/ble` | 🟡 interface + scan; attack hooks stubbed |
+| WiFi: AP scan, sniffer→pcap, EAPOL/PMKID capture, Evil Portal | `modules/wifi` | ✅ implemented (deauth left as gated hook) |
+| BLE (scan / spam / HID) | `modules/ble` | 🟡 interface + scan; spam/HID hooks stubbed |
 | Sub-GHz raw OOK/ASK (CC1101) | `modules/subghz` | 🟡 interface stubbed (needs CC1101, see HARDWARE.md) |
 | RFID/NFC | `modules/rfid` | 🟡 interface stubbed (needs reader module) |
 | BadUSB (HID injection) | `modules/badusb` | 🟡 interface + DuckyScript parser stub |
@@ -44,6 +44,40 @@ Early scaffold. What's implemented vs. stubbed:
 "🟡 stubbed" modules compile and appear in the menu, but their offensive
 actions are left as clearly-marked `TODO` hooks for you to fill in against your
 own test gear.
+
+## Roadmap — toward Bruce parity and beyond
+
+Target feature set (✅ done, 🟡 in progress, ⬜ planned). The goal is everything
+Bruce/Marauder do on comparable hardware, plus the LoRa/GPS capabilities this
+cap unlocks.
+
+- **WiFi:** ✅ scan, ✅ sniffer→pcap, ✅ EAPOL/PMKID capture, ✅ evil portal,
+  ⬜ beacon spam, ⬜ probe/station mapper, ⬜ targeted deauth (authorized
+  reauth-capture), ⬜ handshake→hashcat `22000` export, ⬜ Wireguard/pivot.
+- **BLE:** ✅ scan, ⬜ HID keyboard ("BadBLE"), ⬜ advertisement spam
+  (rate-limited), ⬜ GATT enumerator.
+- **Sub-GHz (CC1101):** 🟡 scaffold, ⬜ OOK/ASK capture, ⬜ replay, ⬜ protocol
+  decode (OOK remotes), ⬜ frequency/RSSI spectrum view.
+- **LoRa (SX1262, this cap):** ✅ wardrive→WiGLE, ✅ AES messenger,
+  ✅ OTAA join fuzzer, ⬜ raw LoRa sniffer, ⬜ LoRaWAN uplink sniffer,
+  ⬜ Meshtastic observer, ⬜ RF spectrum sweep.
+- **IR:** ✅ TX raw/.ir/TV-B-Gone, ⬜ NEC/RC5/SIRC/Samsung encoders,
+  ⬜ RX decode (needs external receiver on GPIO).
+- **RFID/NFC:** 🟡 scaffold, ⬜ 13.56 MHz read/clone/write (PN532/RC522),
+  ⬜ 125 kHz, ⬜ emulation/chameleon.
+- **USB/HID:** ✅ BadUSB DuckyScript, ⬜ payload library, ⬜ USB mass-storage.
+- **Platform:** ⬜ scripting engine (run modules from an SD script),
+  ⬜ on-device config editor, ⬜ OTA update, ⬜ NRF24 scanner.
+
+### What this project will *not* ship as turnkey
+
+Pure denial-of-service and indiscriminate mass-targeting have no authorized-test
+use that a *targeted* tool can't serve, so they aren't shipped as one-button
+features: RF/WiFi/BLE **jammers**, **"deauth everything"** floods, and
+**mass BLE pairing-popup spam**. Where an engagement genuinely needs a
+disruptive step (e.g. forcing a single client to reauth for handshake capture),
+implement it **targeted, bounded, and logged** against gear you're scoped to
+test. See `docs/LEGAL.md`.
 
 ## Build & flash
 

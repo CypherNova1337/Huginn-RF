@@ -47,6 +47,10 @@ lorawan_fuzzer:
 
 wifi:
   authorized_ack_required: true
+  # Evil Portal: SSID of the open AP, and the HTML template you supply. The
+  # firmware serves whatever template you put here (it ships no brand spoof).
+  portal_ssid: Free_WiFi
+  portal_template: /huginn/portal/index.html
 
 ble:
   authorized_ack_required: true
