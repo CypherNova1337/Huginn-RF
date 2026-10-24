@@ -38,7 +38,7 @@ Early scaffold. What's implemented vs. stubbed:
 | **Scripts** — run `.hsc` macro scripts from SD | `modules/script` | ✅ implemented |
 | WiFi: scan, sniffer→pcap, EAPOL/PMKID capture, **targeted** deauth, Evil Portal, capture verify, **probe-SSID harvest** | `modules/wifi` | ✅ implemented |
 | LoRa raw sniffer → SD log | `modules/lora_sniffer` | ✅ implemented |
-| BLE scan | `modules/ble` | ✅ scan (HID "BadBLE" code present, pending verified enable) |
+| BLE scan | `modules/ble` | ✅ scan; HID "BadBLE" in the `cardputer_adv_badble` image |
 | BadUSB (HID injection) | `modules/badusb` | ✅ implemented (DuckyScript + USB-HID) |
 
 Every module in this table builds in the single `cardputer_adv` profile and
@@ -58,8 +58,9 @@ Works with the hardware on hand (Cardputer ADV + LoRa-1262 cap):
 - **WiFi:** ✅ scan, ✅ sniffer→pcap, ✅ EAPOL/PMKID capture, ✅ targeted
   deauth (bounded, reauth-capture), ✅ capture verify + hashcat recipe,
   ✅ evil portal, ⬜ on-device `22000` conversion.
-- **BLE:** ✅ scan, 🟡 HID keyboard ("BadBLE" — code present, landing once the
-  BLE-stack coexistence is verified), ⬜ GATT enumerator.
+- **BLE:** ✅ scan, ✅ HID keyboard ("BadBLE", separate `cardputer_adv_badble`
+  image — the HID stack doesn't share an image with the scanner), ⬜ GATT
+  enumerator.
 - **LoRa (SX1262, this cap):** ✅ AES messenger, ✅ raw LoRa sniffer,
   ⬜ Meshtastic observer, ⬜ RF spectrum sweep. (LoRaWAN sniff/fuzz dropped —
   one SX1262 can't follow LoRaWAN's channel+SF hopping, so it caught almost
@@ -94,10 +95,13 @@ test. See `docs/LEGAL.md`.
 ## Build & flash
 
 ```bash
-# PlatformIO — one profile, scoped to the Cardputer ADV + LoRa-1262 cap
-pio run -e cardputer_adv            # build
+# PlatformIO — scoped to the Cardputer ADV + LoRa-1262 cap
+pio run -e cardputer_adv            # main build (everything except BadBLE)
 pio run -e cardputer_adv -t upload  # flash over USB-C
 pio device monitor                  # serial console
+
+# Optional separate image for BLE HID ("BadBLE") keystroke injection:
+pio run -e cardputer_adv_badble -t upload
 ```
 
 See [`docs/HARDWARE.md`](docs/HARDWARE.md) for pin maps and the CC1101 variant,
