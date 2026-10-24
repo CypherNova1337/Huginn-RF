@@ -12,6 +12,7 @@
 #include "lorawan_fuzzer/LorawanFuzzer.h"
 #include "wifi/Wifi.h"
 #include "ble/Ble.h"
-#include "subghz/SubGhz.h"
-#include "rfid/Rfid.h"
 #include "badusb/BadUsb.h"
+// Sub-GHz (CC1101) and RFID (PN532) modules were removed: they require add-on
+// hardware not present on this Cardputer ADV + LoRa-1262 setup. They can return
+// if/when that hardware is added — see docs/HARDWARE.md.
