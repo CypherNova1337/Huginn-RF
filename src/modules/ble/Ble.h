@@ -2,8 +2,10 @@
 //
 //   Scan   passive BLE device scan (name/address/RSSI)
 //   HID    "BadBLE" — advertise as a BLE keyboard and run a DuckyScript from SD
-//          against a device you pair with (built with cardputer_adv_full +
-//          HUGINN_ENABLE_BLE_HID). Authorized testing of your own device only.
+//          against a device you pair with. Compiled only when
+//          HUGINN_ENABLE_BLE_HID is defined; not built in the default profile
+//          yet (the BLE-stack coexistence with the scanner needs verifying).
+//          Runs on this hardware as-is — no add-on needed. Authorized use only.
 //
 // Advertisement "spam" (pairing-popup flooding of every device in range) is a
 // mass-targeting nuisance and is intentionally not shipped.

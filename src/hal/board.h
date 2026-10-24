@@ -41,26 +41,6 @@
 // ---------------------------------------------------------------------------
 #define IR_TX_PIN       44
 
-// ---------------------------------------------------------------------------
-// Optional CC1101 (sub-GHz OOK/ASK) — only used in the cc1101 build env.
-// ---------------------------------------------------------------------------
-#ifdef HUGINN_HAS_CC1101
-#define CC1101_PIN_SCK   36
-#define CC1101_PIN_MISO  37
-#define CC1101_PIN_MOSI  35
-#define CC1101_PIN_CS     7
-#define CC1101_PIN_GDO0   9
-#define CC1101_PIN_GDO2  10
-#endif
-
-// ---------------------------------------------------------------------------
-// Optional PN532 RFID/NFC reader on the Grove I2C port (cardputer_adv_full).
-// Verify against your Grove wiring; the Cardputer Grove port is commonly
-// SDA=GPIO2, SCL=GPIO1.
-// ---------------------------------------------------------------------------
-#ifdef HUGINN_HAS_RFID
-#define RFID_I2C_SDA     2
-#define RFID_I2C_SCL     1
-#define RFID_PN532_IRQ   -1   // not wired
-#define RFID_PN532_RESET -1
-#endif
+// Add-on hardware not present on this setup (CC1101 sub-GHz, PN532 RFID) had
+// their pin maps here; they were removed with their modules. Restore them from
+// git history (or docs/HARDWARE.md) if that hardware is ever attached.

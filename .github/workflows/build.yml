@@ -29,9 +29,3 @@ jobs:
 
       - name: Build (cardputer_adv)
         run: pio run -e cardputer_adv
-
-      - name: Build (cardputer_adv_full)
-        run: pio run -e cardputer_adv_full
-
-      - name: Build (cardputer_adv_cc1101)
-        run: pio run -e cardputer_adv_cc1101

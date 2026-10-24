@@ -34,17 +34,15 @@ Early scaffold. What's implemented vs. stubbed:
 | Sub-GHz / LoRa **wardriving → WiGLE CSV** | `modules/wardrive` | ✅ implemented |
 | **Encrypted P2P messenger** (AES-GCM over 915 MHz) | `modules/messenger` | ✅ implemented |
 | **IR transmitter** (TV-B-Gone / universal remote) | `modules/ir` | ✅ implemented |
-| LoRaWAN **OTAA join fuzzer** (your own test server) | `modules/lorawan_fuzzer` | 🟡 harness + guards, payload mutators are yours |
+| LoRaWAN **OTAA join fuzzer** (your own test server) | `modules/lorawan_fuzzer` | ✅ implemented (guarded + rate-capped) |
 | WiFi: scan, sniffer→pcap, EAPOL/PMKID capture, **targeted** deauth, Evil Portal, capture verify | `modules/wifi` | ✅ implemented |
 | LoRa raw sniffer → SD log | `modules/lora_sniffer` | ✅ implemented |
-| BLE scan / HID ("BadBLE") | `modules/ble` | ✅ scan; ✅ HID in `full` build |
-| Sub-GHz raw OOK/ASK + RSSI sweep (CC1101) | `modules/subghz` | ✅ in `cc1101` build (needs CC1101, see HARDWARE.md) |
-| RFID/NFC read + Mifare dump (PN532) | `modules/rfid` | ✅ in `full` build (needs PN532, see HARDWARE.md) |
-| BadUSB (HID injection) | `modules/badusb` | 🟡 interface + DuckyScript parser stub |
+| BLE scan | `modules/ble` | ✅ scan (HID "BadBLE" code present, pending verified enable) |
+| BadUSB (HID injection) | `modules/badusb` | ✅ implemented (DuckyScript + USB-HID) |
 
-"🟡 stubbed" modules compile and appear in the menu, but their offensive
-actions are left as clearly-marked `TODO` hooks for you to fill in against your
-own test gear.
+Every module in this table builds in the single `cardputer_adv` profile and
+runs on the Cardputer ADV + LoRa-1262 cap with no add-on hardware. The 🟡 on
+the fuzzer just means you supply the target server and mutation profile.
 
 ## Roadmap — toward Bruce parity and beyond
 
@@ -52,22 +50,31 @@ Target feature set (✅ done, 🟡 in progress, ⬜ planned). The goal is everyt
 Bruce/Marauder do on comparable hardware, plus the LoRa/GPS capabilities this
 cap unlocks.
 
+Works with the hardware on hand (Cardputer ADV + LoRa-1262 cap):
+
 - **WiFi:** ✅ scan, ✅ sniffer→pcap, ✅ EAPOL/PMKID capture, ✅ targeted
   deauth (bounded, reauth-capture), ✅ capture verify + hashcat recipe,
   ✅ evil portal, ⬜ probe/station mapper, ⬜ on-device `22000` conversion.
-- **BLE:** ✅ scan, ✅ HID keyboard ("BadBLE", `full` build), ⬜ GATT enumerator.
-- **Sub-GHz (CC1101):** ✅ OOK/ASK capture, ✅ replay, ✅ RSSI sweep,
-  ⬜ protocol decode (de-Manchester known OOK remotes).
+- **BLE:** ✅ scan, 🟡 HID keyboard ("BadBLE" — code present, landing once the
+  BLE-stack coexistence is verified), ⬜ GATT enumerator.
 - **LoRa (SX1262, this cap):** ✅ wardrive→WiGLE, ✅ AES messenger,
   ✅ OTAA join fuzzer, ✅ raw LoRa sniffer, ⬜ LoRaWAN uplink decode,
   ⬜ Meshtastic observer, ⬜ RF spectrum sweep.
-- **IR:** ✅ TX raw/.ir/TV-B-Gone, ⬜ NEC/RC5/SIRC/Samsung encoders,
-  ⬜ RX decode (needs external receiver on GPIO).
-- **RFID/NFC:** ✅ 13.56 MHz read + Mifare dump (PN532, `full` build),
-  ⬜ write/clone (magic cards), ⬜ 125 kHz, ⬜ emulation/chameleon.
+- **IR:** ✅ TX raw/.ir/TV-B-Gone, ⬜ NEC/RC5/SIRC/Samsung encoders.
 - **USB/HID:** ✅ BadUSB DuckyScript, ⬜ payload library, ⬜ USB mass-storage.
 - **Platform:** ⬜ scripting engine (run modules from an SD script),
-  ⬜ on-device config editor, ⬜ OTA update, ⬜ NRF24 scanner.
+  ⬜ on-device config editor, ⬜ OTA update.
+
+Needs add-on hardware you don't currently have (left out until then):
+
+- **Sub-GHz OOK/ASK cloning** — a CC1101 module (the SX1262 cap does chirp
+  LoRa, not general OOK remote capture).
+- **RFID/NFC** — a PN532 or RC522 reader.
+- **IR receive/copy** — an external IR receiver on a GPIO pin.
+- **NRF24 / 2.4 GHz toys** — an nRF24L01 module.
+
+The code for the CC1101 and PN532 modules lives in git history and can return
+behind its own build the day that hardware is attached.
 
 ### What this project will *not* ship as turnkey
 
@@ -82,11 +89,8 @@ test. See `docs/LEGAL.md`.
 ## Build & flash
 
 ```bash
-# PlatformIO — three build profiles
-pio run -e cardputer_adv            # core: WiFi, BLE scan, LoRa suite, IR, BadUSB
-pio run -e cardputer_adv_full       # + BLE HID + RFID (needs PN532)
-pio run -e cardputer_adv_cc1101     # + CC1101 raw sub-GHz
-
+# PlatformIO — one profile, scoped to the Cardputer ADV + LoRa-1262 cap
+pio run -e cardputer_adv            # build
 pio run -e cardputer_adv -t upload  # flash over USB-C
 pio device monitor                  # serial console
 ```
