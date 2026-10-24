@@ -34,8 +34,9 @@ Early scaffold. What's implemented vs. stubbed:
 | **Wardriving** (WiFi APs + BLE + LoRa) → WiGLE CSV with GPS | `modules/wardrive` | ✅ implemented |
 | **Who's Around** — live nearby-device presence + lock-on RSSI locate | `modules/recon` | ✅ implemented |
 | **Encrypted P2P messenger** (AES-GCM over 915 MHz) | `modules/messenger` | ✅ implemented |
-| **IR transmitter** (TV-B-Gone / universal remote) | `modules/ir` | ✅ implemented |
-| WiFi: scan, sniffer→pcap, EAPOL/PMKID capture, **targeted** deauth, Evil Portal, capture verify | `modules/wifi` | ✅ implemented |
+| **IR transmitter** — raw `.ir`/TV-B-Gone + typed NEC/Samsung/Sony codes | `modules/ir` | ✅ implemented |
+| **Scripts** — run `.hsc` macro scripts from SD | `modules/script` | ✅ implemented |
+| WiFi: scan, sniffer→pcap, EAPOL/PMKID capture, **targeted** deauth, Evil Portal, capture verify, **probe-SSID harvest** | `modules/wifi` | ✅ implemented |
 | LoRa raw sniffer → SD log | `modules/lora_sniffer` | ✅ implemented |
 | BLE scan | `modules/ble` | ✅ scan (HID "BadBLE" code present, pending verified enable) |
 | BadUSB (HID injection) | `modules/badusb` | ✅ implemented (DuckyScript + USB-HID) |
@@ -53,7 +54,7 @@ Works with the hardware on hand (Cardputer ADV + LoRa-1262 cap):
 
 - **Recon / situational awareness:** ✅ wardriving (WiFi+BLE+LoRa → WiGLE,
   GPS-stamped), ✅ live "who's around" presence, ✅ lock-on RSSI proximity
-  locate, ⬜ probe-request SSID harvest, ⬜ presence logging over time.
+  locate, ✅ probe-request SSID harvest, ⬜ presence logging over time.
 - **WiFi:** ✅ scan, ✅ sniffer→pcap, ✅ EAPOL/PMKID capture, ✅ targeted
   deauth (bounded, reauth-capture), ✅ capture verify + hashcat recipe,
   ✅ evil portal, ⬜ on-device `22000` conversion.
@@ -63,9 +64,10 @@ Works with the hardware on hand (Cardputer ADV + LoRa-1262 cap):
   ⬜ Meshtastic observer, ⬜ RF spectrum sweep. (LoRaWAN sniff/fuzz dropped —
   one SX1262 can't follow LoRaWAN's channel+SF hopping, so it caught almost
   nothing; not worth shipping on this cap.)
-- **IR:** ✅ TX raw/.ir/TV-B-Gone, ⬜ NEC/RC5/SIRC/Samsung encoders.
+- **IR:** ✅ TX raw/.ir/TV-B-Gone, ✅ NEC/NEC-ext/Samsung/Sony encoders
+  ("type a code"), ⬜ RC5/RC6 (Manchester).
 - **USB/HID:** ✅ BadUSB DuckyScript, ⬜ payload library, ⬜ USB mass-storage.
-- **Platform:** ⬜ scripting engine (run modules from an SD script),
+- **Platform:** ✅ scripting engine (.hsc macros from SD), ⬜ more script verbs,
   ⬜ on-device config editor, ⬜ OTA update.
 
 Needs add-on hardware you don't currently have (left out until then):

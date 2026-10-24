@@ -65,3 +65,6 @@ ble:
 
 badusb:
   payload_dir: /huginn/payloads/badusb
+
+script:
+  dir: /huginn/scripts          # .hsc / .txt macro scripts

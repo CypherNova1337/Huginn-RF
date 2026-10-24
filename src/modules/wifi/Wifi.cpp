@@ -93,12 +93,13 @@ bool WifiModule::loop(Context& ctx) {
         case View::Deauth:    return loopDeauth(ctx);
         case View::Portal:    return loopPortal(ctx);
         case View::Export:    return loopExport(ctx);
+        case View::Probe:     return loopProbe(ctx);
     }
 
     static const char* items[] = {"Scan APs", "Sniffer (pcap)",
                                   "Handshake capture", "Targeted deauth",
-                                  "Evil Portal", "Verify capture"};
-    const int N = 6;
+                                  "Evil Portal", "Verify capture", "Probe harvest"};
+    const int N = 7;
     ctx.display->list(items, N, menuSel_, "WiFi", "Enter=open  Esc=back");
 
     KeyEvent e = ctx.input->poll();
@@ -113,6 +114,7 @@ bool WifiModule::loop(Context& ctx) {
             else if (menuSel_ == 3) { view_ = View::Deauth; }
             else if (menuSel_ == 4) { if (startPortal(ctx)) view_ = View::Portal; }
             else if (menuSel_ == 5) { view_ = View::Export; }
+            else if (menuSel_ == 6) { startProbe(ctx); view_ = View::Probe; }
             break;
         default: break;
     }
@@ -452,6 +454,111 @@ bool WifiModule::loopExport(Context& ctx) {
     ctx.display->footer("Esc=back");
     if (ctx.input->poll().key == Key::Back) { g_exportResult = -2; view_ = View::Menu; }
     delay(20); return true;
+}
+
+// --- Probe-request SSID harvest --------------------------------------------
+// Phones periodically broadcast directed probe requests naming networks they
+// remember. Collecting those SSIDs reveals the networks a nearby device has
+// joined before — useful recon (and a reminder to turn off auto-join). Passive.
+struct ProbeSsid { char ssid[33]; uint16_t count; };
+static ProbeSsid g_probes[128];
+static volatile int g_probeN = 0;
+
+static void probeCb(void* buf, wifi_promiscuous_pkt_type_t type) {
+    auto* p = (wifi_promiscuous_pkt_t*)buf;
+    int len = p->rx_ctrl.sig_len;
+    const uint8_t* f = p->payload;
+    if (len < 26) return;
+    if (f[0] != 0x40) return;                 // frame control: probe request
+    const uint8_t* tag = f + 24;              // tagged params follow the header
+    if (tag + 2 > f + len) return;
+    if (tag[0] != 0x00) return;               // element 0 = SSID
+    int slen = tag[1];
+    if (slen <= 0 || slen > 32) return;       // skip wildcard / broadcast probes
+    if (tag + 2 + slen > f + len) return;
+    char ssid[33];
+    for (int i = 0; i < slen; ++i) {
+        uint8_t c = tag[2 + i];
+        if (c < 32 || c > 126) return;        // printable only
+        ssid[i] = (char)c;
+    }
+    ssid[slen] = 0;
+    for (int i = 0; i < g_probeN; ++i)
+        if (strcmp(g_probes[i].ssid, ssid) == 0) { g_probes[i].count++; return; }
+    if (g_probeN < 128) {
+        strncpy(g_probes[g_probeN].ssid, ssid, sizeof(g_probes[0].ssid));
+        g_probes[g_probeN].ssid[32] = 0;
+        g_probes[g_probeN].count = 1;
+        g_probeN++;
+    }
+}
+
+void WifiModule::startProbe(Context& ctx) {
+    g_probeN = 0; probeSel_ = 0;
+    WiFi.mode(WIFI_STA); WiFi.disconnect(true);
+    esp_wifi_set_promiscuous(true);
+    wifi_promiscuous_filter_t filt;
+    filt.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT;   // management frames only
+    esp_wifi_set_promiscuous_filter(&filt);
+    esp_wifi_set_promiscuous_rx_cb(&probeCb);
+    esp_wifi_set_channel(channel_, WIFI_SECOND_CHAN_NONE);
+    if (ctx.log) ctx.log->info("Probe harvest started");
+}
+
+void WifiModule::stopProbe(Context& ctx) {
+    esp_wifi_set_promiscuous(false);
+    // Restore the default (all) filter for other promiscuous uses.
+    wifi_promiscuous_filter_t all;
+    all.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
+    esp_wifi_set_promiscuous_filter(&all);
+    // Save what we collected.
+    if (ctx.sd) {
+        File f = ctx.sd->openCapture("probes", "csv");
+        if (f) {
+            f.println("ssid,count");
+            for (int i = 0; i < g_probeN; ++i)
+                f.printf("\"%s\",%u\n", g_probes[i].ssid, g_probes[i].count);
+            f.close();
+        }
+    }
+    if (ctx.log) ctx.log->info("Probe harvest: %d unique SSIDs", g_probeN);
+}
+
+bool WifiModule::loopProbe(Context& ctx) {
+    static uint32_t lastHop = 0;
+    if (millis() - lastHop > 300) {
+        lastHop = millis();
+        channel_ = (channel_ % 13) + 1;
+        esp_wifi_set_channel(channel_, WIFI_SECOND_CHAN_NONE);
+    }
+
+    if (millis() - lastUiMs_ > 350) {
+        lastUiMs_ = millis();
+        int n = g_probeN;
+        if (probeSel_ >= n) probeSel_ = n > 0 ? n - 1 : 0;
+        ctx.display->clear(); ctx.display->header("Probe harvest");
+        ctx.display->printf(0, 0xFFFF, "SSIDs: %d  (ch%u)", n, channel_);
+        int rows = ctx.display->bodyRows() - 2;
+        int first = probeSel_ >= rows ? probeSel_ - rows + 1 : 0;
+        for (int r = 0; r < rows && (first + r) < n; ++r) {
+            int i = first + r; bool s = (i == probeSel_);
+            char line[40];
+            snprintf(line, sizeof(line), "%s %s (x%u)", s ? ">" : " ",
+                     g_probes[i].ssid, g_probes[i].count);
+            ctx.display->line(1 + r, line, s ? 0xFFE0 : 0xFFFF);
+        }
+        ctx.display->footer("Up/Dn  Esc=stop & save");
+    }
+
+    KeyEvent e = ctx.input->poll();
+    switch (e.key) {
+        case Key::Up:   if (probeSel_ > 0) probeSel_--; break;
+        case Key::Down: if (probeSel_ < g_probeN - 1) probeSel_++; break;
+        case Key::Back: stopProbe(ctx); view_ = View::Menu; break;
+        default: break;
+    }
+    delay(5);
+    return true;
 }
 
 REGISTER_MODULE(WifiModule);
