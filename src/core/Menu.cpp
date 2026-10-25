@@ -26,6 +26,7 @@ void Menu::runCategoryList(Context& ctx) {
     for (;;) {
         ctx.display->list(labels.data(), labels.size(), sel,
                           "Huginn-RF", "Up/Down  Enter=open");
+        ctx.display->present();
         KeyEvent e = ctx.input->poll();
         switch (e.key) {
             case Key::Up:    sel = (sel + labels.size() - 1) % labels.size(); break;
@@ -48,6 +49,7 @@ void Menu::runModuleList(Context& ctx, Category cat) {
                           categoryName(cat), "Enter=run  Esc=back");
         // Footer: description of the highlighted module.
         ctx.display->footer(mods[sel]->description());
+        ctx.display->present();
         KeyEvent e = ctx.input->poll();
         switch (e.key) {
             case Key::Up:    sel = (sel + labels.size() - 1) % labels.size(); break;
@@ -75,6 +77,7 @@ bool Menu::ensureAuthorized(Context& ctx, Module* m) {
     ctx.display->line(2, "or have written permission", 0xFFFF);
     ctx.display->line(3, "to test.", 0xFFFF);
     ctx.display->line(5, "Press Y to accept, Esc=no", 0x07E0);
+    ctx.display->present();
     for (;;) {
         KeyEvent e = ctx.input->poll();
         if (e.key == Key::Back) return false;
@@ -90,7 +93,13 @@ bool Menu::ensureAuthorized(Context& ctx, Module* m) {
 void Menu::runModule(Context& ctx, Module* m) {
     if (ctx.log) ctx.log->info("Enter module: %s", m->name());
     m->enter(ctx);
-    while (m->loop(ctx)) { delay(2); }
+    ctx.display->present();                 // show whatever enter() drew
+    for (;;) {
+        bool cont = m->loop(ctx);
+        ctx.display->present();             // push this frame (flicker-free)
+        if (!cont) break;
+        delay(2);
+    }
     m->exit(ctx);
     if (ctx.log) ctx.log->info("Exit module: %s", m->name());
 }

@@ -20,6 +20,7 @@ public:
 
 private:
     void writeHeader();
+    void drawHud(Context& ctx, const char* status);
     bool fresh(const String& key, uint32_t now);
     void logRow(Context& ctx, const char* mac, const String& ssid,
                 const String& auth, int rssi, int channel, const char* type);

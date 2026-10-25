@@ -21,10 +21,15 @@ public:
     void list(const char* const* items, int count, int selected,
               const char* title, const char* hint);
 
+    // Push the off-screen frame to the panel. Called once per UI frame by the
+    // menu/module driver; double-buffering is what kills the flicker.
+    void present();
+
     int bodyRows() const { return bodyRows_; }
 
 private:
     int bodyRows_ = 0;
     int bodyTop_  = 0;
     int lineH_    = 0;
+    bool canvas_  = false;   // true once the off-screen sprite is allocated
 };
