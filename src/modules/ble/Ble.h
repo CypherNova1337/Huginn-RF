@@ -25,15 +25,22 @@ public:
     void exit(Context& ctx) override;
 
 private:
-    struct Dev { String name; String addr; int rssi; };
-    enum class View { Menu, Scan, Hid };
+    struct Dev {
+        String name; String addr; int rssi = 0;
+        String svc;            // advertised service UUID (if any)
+        String mfg;            // manufacturer data (hex) / vendor hint
+        int    appearance = 0;
+    };
+    enum class View { Menu, Scan, Detail, Hid };
     View view_ = View::Menu;
     int  menuSel_ = 0;
 
     std::vector<Dev> devs_;
     int  scanSel_ = 0;
+    uint32_t lastScanMs_ = 0;
     void doScan(Context& ctx);
     bool loopScan(Context& ctx);
+    bool loopDetail(Context& ctx);
 
 #ifdef HUGINN_ENABLE_BLE_HID
     bool hidStarted_ = false;
