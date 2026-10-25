@@ -11,6 +11,7 @@ void Gps::begin(uint32_t baud) {
 
 void Gps::update() {
     while (s_serial.available()) {
+        bytes_++;
         if (s_gps.encode(s_serial.read())) {
             if (s_gps.location.isValid()) {
                 fix_.lat = s_gps.location.lat();

@@ -139,8 +139,11 @@ void WardriveModule::drawHud(Context& ctx, const char* status) {
         ctx.display->printf(2, 0x07E0, "GPS fix  sats=%u", fix.satellites);
         ctx.display->printf(3, 0x8410, "%.5f, %.5f", fix.lat, fix.lon);
     } else {
-        ctx.display->printf(2, 0xFFE0, "GPS: no fix  sats=%u", fix.satellites);
-        ctx.display->line(3, "(scanning OK; CSV needs fix)", 0x8410);
+        uint32_t b = ctx.gps->bytes();
+        // b>0 => GPS is talking, just needs open sky; b==0 => wiring/power.
+        ctx.display->printf(2, 0xFFE0, "GPS no fix  sats=%u  rx=%lu",
+                            fix.satellites, (unsigned long)b);
+        ctx.display->line(3, b ? "GPS alive-need open sky" : "GPS silent-check wiring", 0x8410);
     }
     ctx.display->line(4, status, 0x5D9F);
     ctx.display->footer("Esc=stop & save");

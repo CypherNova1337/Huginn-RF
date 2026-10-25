@@ -27,7 +27,7 @@ public:
 private:
     struct Ap { String ssid; uint8_t bssid[6]; int32_t rssi; uint8_t ch; uint8_t enc; };
 
-    enum class View { Menu, Scan, Sniffer, Handshake, Deauth, Portal, Export, Probe };
+    enum class View { Menu, Scan, Target, Sniffer, Handshake, Deauth, Portal, Export, Probe };
     View view_ = View::Menu;
     int  menuSel_ = 0;
 
@@ -36,6 +36,11 @@ private:
     int  scanSel_ = 0;
     void doScan(Context& ctx);
     bool loopScan(Context& ctx);
+
+    // Per-target action menu: pick an AP, then attack that specific one.
+    int  targetIdx_ = 0;
+    int  targetSel_ = 0;
+    bool loopTarget(Context& ctx);
 
     // --- Sniffer / Handshake (both use promiscuous mode) ---
     uint8_t  channel_ = 1;

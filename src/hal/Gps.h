@@ -21,9 +21,14 @@ public:
     bool       hasFix() const { return fix_.valid; }
     const Fix& fix() const { return fix_; }
 
+    // Raw NMEA bytes seen on the UART. >0 means the GPS is wired right and
+    // talking (so sats=0 just means no sky lock yet); 0 means wrong pins/power.
+    uint32_t   bytes() const { return bytes_; }
+
     // ISO-8601 UTC of the last fix, for WiGLE CSV ("YYYY-MM-DD HH:MM:SS").
     String isoTime() const;
 
 private:
     Fix fix_;
+    uint32_t bytes_ = 0;
 };

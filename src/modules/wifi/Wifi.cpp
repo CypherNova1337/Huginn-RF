@@ -88,6 +88,7 @@ bool WifiModule::loop(Context& ctx) {
     switch (view_) {
         case View::Menu:      break;
         case View::Scan:      return loopScan(ctx);
+        case View::Target:    return loopTarget(ctx);
         case View::Sniffer:   return loopSniffer(ctx, /*eapolOnly=*/false);
         case View::Handshake: return loopSniffer(ctx, /*eapolOnly=*/true);
         case View::Deauth:    return loopDeauth(ctx);
@@ -170,17 +171,51 @@ bool WifiModule::loopScan(Context& ctx) {
             ctx.display->line(r, buf, col);
         }
     }
-    ctx.display->footer("Up/Dn  Enter=set ch  Esc=back");
+    ctx.display->footer("Up/Dn  Enter=target  Esc=back");
 
     KeyEvent e = ctx.input->poll();
     switch (e.key) {
         case Key::Up:   if (scanSel_ > 0) scanSel_--; break;
         case Key::Down: if (scanSel_ < (int)aps_.size() - 1) scanSel_++; break;
         case Key::Enter:
-            if (!aps_.empty()) { channel_ = aps_[scanSel_].ch;
-                if (ctx.log) ctx.log->info("Capture channel set to %u", channel_); }
+            if (!aps_.empty()) { targetIdx_ = scanSel_; targetSel_ = 0;
+                                 WiFi.scanDelete(); view_ = View::Target; }
             break;
         case Key::Back: WiFi.scanDelete(); view_ = View::Menu; break;
+        default: break;
+    }
+    delay(10); return true;
+}
+
+// Per-target action menu: run an attack against the specific AP you picked
+// (works for hidden networks too — they're targeted by BSSID).
+bool WifiModule::loopTarget(Context& ctx) {
+    if (aps_.empty() || targetIdx_ >= (int)aps_.size()) { view_ = View::Scan; return true; }
+    const Ap& a = aps_[targetIdx_];
+
+    ctx.display->clear();
+    ctx.display->header("WiFi target");
+    ctx.display->printf(0, 0xFFFF, "%s", a.ssid.length() ? a.ssid.c_str() : "<hidden>");
+    ctx.display->printf(1, 0x8410, "%02X:%02X:%02X:%02X:%02X:%02X c%u",
+        a.bssid[0],a.bssid[1],a.bssid[2],a.bssid[3],a.bssid[4],a.bssid[5], a.ch);
+    static const char* acts[] = {"Capture handshake", "Deauth this AP", "Sniff channel"};
+    const int N = 3;
+    for (int i = 0; i < N; ++i)
+        ctx.display->line(3 + i, (String(i==targetSel_?"> ":"  ") + acts[i]).c_str(),
+                          i==targetSel_ ? 0xFFE0 : 0xFFFF);
+    ctx.display->footer("Up/Dn  Enter=run  Esc=back");
+
+    KeyEvent e = ctx.input->poll();
+    switch (e.key) {
+        case Key::Up:   targetSel_ = (targetSel_ + N - 1) % N; break;
+        case Key::Down: targetSel_ = (targetSel_ + 1) % N; break;
+        case Key::Back: view_ = View::Scan; break;
+        case Key::Enter:
+            channel_ = a.ch;                 // lock all actions to this AP's channel
+            if (targetSel_ == 0)      { if (startPromiscuous(ctx, true))  view_ = View::Handshake; }
+            else if (targetSel_ == 1) { scanSel_ = targetIdx_; view_ = View::Deauth; }
+            else                      { if (startPromiscuous(ctx, false)) view_ = View::Sniffer; }
+            break;
         default: break;
     }
     delay(10); return true;
