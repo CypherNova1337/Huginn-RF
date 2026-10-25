@@ -54,7 +54,8 @@ private:
     bool     loopDeauth(Context& ctx);
     void     sendDeauthBurst(Context& ctx, const Ap& ap);
 
-    // --- Evil Portal ---
+    // --- Evil Portal / evil-twin clone ---
+    String cloneSsid_;               // when set, the portal clones this SSID
     bool startPortal(Context& ctx);
     bool loopPortal(Context& ctx);
     void stopPortal();
