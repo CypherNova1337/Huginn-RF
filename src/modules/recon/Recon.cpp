@@ -4,6 +4,7 @@
 #include "../../core/Input.h"
 #include "../../core/Config.h"
 #include "../../core/Logger.h"
+#include "../../hal/Vendor.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <BLEDevice.h>
@@ -142,9 +143,12 @@ bool ReconModule::loopList(Context& ctx) {
             for (; bi < bars && bi < 5; ++bi) bar[bi] = '|';
             for (; bi < 5; ++bi) bar[bi] = '.';
             bar[5] = 0;
-            char line[48];
-            snprintf(line, sizeof(line), "%s%s %s %02X%02X%02X %d",
-                     s ? ">" : " ", bar, g_tbl[e].kind ? "BLE" : "WiF",
+            // Smart label: vendor name when we can identify it, else WiFi/BLE.
+            const char* who = g_tbl[e].kind ? "BLE" : vendor::forOui(g_tbl[e].mac);
+            if (!who[0]) who = "WiFi";
+            char line[52];
+            snprintf(line, sizeof(line), "%s%s %-7s %02X%02X%02X %d",
+                     s ? ">" : " ", bar, who,
                      g_tbl[e].mac[3], g_tbl[e].mac[4], g_tbl[e].mac[5], rssi);
             // Colour by proximity: near=green, mid=white, far=grey.
             uint16_t col = s ? 0xFFE0 : (rssi > -55 ? 0x07E0 : (rssi > -75 ? 0xFFFF : 0x8410));

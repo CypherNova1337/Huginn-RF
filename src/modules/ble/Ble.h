@@ -28,7 +28,8 @@ private:
     struct Dev {
         String name; String addr; int rssi = 0;
         String svc;            // advertised service UUID (if any)
-        String mfg;            // manufacturer data (hex) / vendor hint
+        String mfg;            // manufacturer data (hex)
+        String vendor;         // resolved from the BLE company ID
         int    appearance = 0;
     };
     enum class View { Menu, Scan, Detail, Hid };
