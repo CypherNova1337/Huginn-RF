@@ -94,18 +94,22 @@ test. See `docs/LEGAL.md`.
 
 ## Build & flash
 
+Quick version (PlatformIO, scoped to the Cardputer ADV + LoRa-1262 cap):
+
 ```bash
-# PlatformIO — scoped to the Cardputer ADV + LoRa-1262 cap
-pio run -e cardputer_adv            # main build (everything except BadBLE)
-pio run -e cardputer_adv -t upload  # flash over USB-C
-pio device monitor                  # serial console
+pio run -e cardputer_adv -t upload  # build + flash over USB-C
+pio device monitor -b 115200        # serial console
 
 # Optional separate image for BLE HID ("BadBLE") keystroke injection:
 pio run -e cardputer_adv_badble -t upload
 ```
 
-See [`docs/HARDWARE.md`](docs/HARDWARE.md) for pin maps and the CC1101 variant,
-and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how modules/config work.
+**Full step-by-step flashing instructions** — installing PlatformIO, finding the
+USB port, bootloader mode if an upload won't start, and preparing the SD card —
+are in **[`docs/FLASHING.md`](docs/FLASHING.md)**.
+
+See [`docs/HARDWARE.md`](docs/HARDWARE.md) for pin maps, and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how modules/config work.
 
 ## SD card layout
 
