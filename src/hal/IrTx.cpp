@@ -63,15 +63,44 @@ std::vector<uint16_t> encodeSamsung(uint8_t addr, uint8_t cmd) {
 std::vector<uint16_t> encodeSony12(uint8_t cmd7, uint8_t addr5) {
     std::vector<uint16_t> v;
     v.push_back(2400); v.push_back(600);    // header
-    for (int i = 0; i < 7; ++i) {
-        v.push_back(((cmd7 >> i) & 1) ? 1200 : 600);
-        v.push_back(600);
-    }
-    for (int i = 0; i < 5; ++i) {
-        v.push_back(((addr5 >> i) & 1) ? 1200 : 600);
-        v.push_back(600);
-    }
+    for (int i = 0; i < 7; ++i) { v.push_back(((cmd7 >> i) & 1) ? 1200 : 600); v.push_back(600); }
+    for (int i = 0; i < 5; ++i) { v.push_back(((addr5 >> i) & 1) ? 1200 : 600); v.push_back(600); }
     return v;
+}
+
+// Sony SIRC 20-bit: 7 command bits then 13 address/extended bits, LSB first.
+std::vector<uint16_t> encodeSony20(uint8_t cmd7, uint16_t addr13) {
+    std::vector<uint16_t> v;
+    v.push_back(2400); v.push_back(600);
+    for (int i = 0; i < 7; ++i)  { v.push_back(((cmd7 >> i) & 1) ? 1200 : 600); v.push_back(600); }
+    for (int i = 0; i < 13; ++i) { v.push_back(((addr13 >> i) & 1) ? 1200 : 600); v.push_back(600); }
+    return v;
+}
+
+// Philips RC5: 14 Manchester bits (start,start,toggle, 5 addr, 6 cmd), MSB
+// first, 889us half-bits, 36 kHz. A '1' = space-then-mark, '0' = mark-then-
+// space. We build a half-bit level sequence then collapse to mark/space runs,
+// dropping the leading idle (space) so the array starts on a mark.
+std::vector<uint16_t> encodeRC5(uint8_t addr5, uint8_t cmd6) {
+    bool b[14];
+    b[0] = 1; b[1] = 1; b[2] = 0;                 // start, start, toggle
+    for (int i = 0; i < 5; ++i) b[3 + i] = (addr5 >> (4 - i)) & 1;  // MSB first
+    for (int i = 0; i < 6; ++i) b[8 + i] = (cmd6 >> (5 - i)) & 1;
+
+    uint8_t lv[28]; int n = 0;
+    for (int i = 0; i < 14; ++i) {
+        if (b[i]) { lv[n++] = 0; lv[n++] = 1; }   // '1' = off then on
+        else      { lv[n++] = 1; lv[n++] = 0; }   // '0' = on then off
+    }
+    std::vector<uint16_t> v;
+    int i = 0;
+    while (i < n && lv[i] == 0) i++;              // skip leading idle
+    while (i < n) {
+        uint8_t level = lv[i]; int cnt = 0;
+        while (i < n && lv[i] == level) { cnt++; i++; }
+        v.push_back((uint16_t)(cnt * 889));
+    }
+    return v;                                     // starts with a mark
 }
 
 } // namespace irtx
