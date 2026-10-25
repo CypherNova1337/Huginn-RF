@@ -114,18 +114,41 @@ bool IrModule::loopFile(Context& ctx) {
 static long parseHex(const String& s) { return strtol(s.c_str(), nullptr, 16); }
 
 bool IrModule::loopProto(Context& ctx) {
-    static const char* protos[] = {"NEC", "NEC-ext", "Samsung", "Sony-12"};
-    ctx.display->list(protos, 4, protoSel_, "IR: protocol", "Enter=enter code  Esc=back");
+    static const char* protos[] = {"NEC", "NEC-ext", "Samsung", "Sony-12",
+                                   "NEC brute (sweep cmd)"};
+    const int N = 5;
+    ctx.display->list(protos, N, protoSel_, "IR: protocol", "Enter=run  Esc=back");
     KeyEvent e = ctx.input->poll();
     switch (e.key) {
-        case Key::Up:   protoSel_ = (protoSel_ + 3) % 4; break;
-        case Key::Down: protoSel_ = (protoSel_ + 1) % 4; break;
+        case Key::Up:   protoSel_ = (protoSel_ + N - 1) % N; break;
+        case Key::Down: protoSel_ = (protoSel_ + 1) % N; break;
         case Key::Back: view_ = View::Menu; return true;
         case Key::Enter: {
-            String a, c;
+            String a;
             if (!ctx.input->readLine("addr (hex):", a)) break;
-            if (!ctx.input->readLine("cmd (hex):", c))  break;
-            long addr = parseHex(a), cmd = parseHex(c);
+            long addr = parseHex(a);
+
+            if (protoSel_ == 4) {
+                // Brute/guess: sweep every NEC command 0..255 for this address.
+                if (ctx.log) ctx.log->tx("ir", "NEC brute addr=0x%lX 0..255", addr);
+                for (int cmd = 0; cmd <= 255; ++cmd) {
+                    irtx::sendRaw(irtx::encodeNEC(addr & 0xFF, cmd), 38000);
+                    if ((cmd & 7) == 0) {
+                        ctx.display->clear(); ctx.display->header("IR: NEC brute");
+                        ctx.display->printf(0, 0xFFFF, "addr 0x%02lX", addr & 0xFF);
+                        ctx.display->printf(1, 0xFFE0, "cmd 0x%02X  (%d/256)", cmd, cmd + 1);
+                        ctx.display->footer("Esc=stop");
+                        ctx.display->present();
+                    }
+                    if (ctx.input->poll().key == Key::Back) break;
+                    delay(60);
+                }
+                break;
+            }
+
+            String c;
+            if (!ctx.input->readLine("cmd (hex):", c)) break;
+            long cmd = parseHex(c);
             std::vector<uint16_t> t; uint16_t freq = 38000;
             switch (protoSel_) {
                 case 0: t = irtx::encodeNEC(addr & 0xFF, cmd & 0xFF); break;
@@ -138,7 +161,7 @@ bool IrModule::loopProto(Context& ctx) {
                                      protos[protoSel_], addr, cmd);
             ctx.display->clear(); ctx.display->header("IR: protocol");
             ctx.display->line(2, "Sent.", 0x07E0);
-            delay(500);
+            delay(400);
             break;
         }
         default: break;

@@ -128,31 +128,47 @@ void WardriveModule::pollLora(Context& ctx) {
     }
 }
 
+void WardriveModule::drawHud(Context& ctx, const char* status) {
+    auto fix = ctx.gps->fix();
+    ctx.display->clear();
+    ctx.display->header("Wardrive");
+    ctx.display->printf(0, 0xFFFF, "WiFi:%lu  BLE:%lu  LoRa:%lu",
+        (unsigned long)wifiCount_, (unsigned long)bleCount_, (unsigned long)loraCount_);
+    ctx.display->printf(1, 0x8410, "unique seen: %u", (unsigned)lastSeen_.size());
+    if (ctx.gps->hasFix()) {
+        ctx.display->printf(2, 0x07E0, "GPS fix  sats=%u", fix.satellites);
+        ctx.display->printf(3, 0x8410, "%.5f, %.5f", fix.lat, fix.lon);
+    } else {
+        uint32_t b = ctx.gps->bytes();
+        // b>0 => GPS is talking, just needs open sky; b==0 => wiring/power.
+        ctx.display->printf(2, 0xFFE0, "GPS no fix  sats=%u  rx=%lu",
+                            fix.satellites, (unsigned long)b);
+        ctx.display->line(3, b ? "GPS alive-need open sky" : "GPS silent-check wiring", 0x8410);
+    }
+    ctx.display->line(4, status, 0x5D9F);
+    ctx.display->footer("Esc=stop & save");
+}
+
 bool WardriveModule::loop(Context& ctx) {
     ctx.gps->update();
 
-    // One radio action per loop pass, round-robin, so the UI stays responsive.
+    // Show the HUD and what we're about to do BEFORE the blocking scan, so the
+    // screen stays alive (and counts are visible) during the 2-3s scan.
+    const char* status = (phase_ == 0 && doWifi_) ? "scanning WiFi..."
+                       : (phase_ == 1 && doBle_)  ? "scanning BLE..."
+                       : "listening...";
+    drawHud(ctx, status);
+    ctx.display->present();
+
+    if (ctx.input->poll().key == Key::Back) return false;
+
+    // One radio action per pass, round-robin.
     if (doLora_) pollLora(ctx);
-    switch (phase_) {
-        case 0: if (doWifi_) scanWifi(ctx); break;
-        case 1: if (doBle_)  scanBle(ctx);  break;
-    }
+    if (phase_ == 0) { if (doWifi_) scanWifi(ctx); }
+    else             { if (doBle_)  scanBle(ctx);  }
     phase_ = (phase_ + 1) % 2;
 
-    if (millis() - lastUiMs_ > 250) {
-        lastUiMs_ = millis();
-        auto fix = ctx.gps->fix();
-        ctx.display->clear(); ctx.display->header("Wardrive");
-        ctx.display->printf(0, 0xFFFF, "WiFi:%lu BLE:%lu LoRa:%lu",
-            (unsigned long)wifiCount_, (unsigned long)bleCount_, (unsigned long)loraCount_);
-        ctx.display->printf(1, ctx.gps->hasFix()?0x07E0:0xF800,
-            "GPS: %s  sats=%u", ctx.gps->hasFix()?"fix":"NO FIX (not logging)", fix.satellites);
-        if (ctx.gps->hasFix())
-            ctx.display->printf(2, 0x8410, "%.5f, %.5f", fix.lat, fix.lon);
-        ctx.display->printf(3, 0x8410, "unique seen: %u", (unsigned)lastSeen_.size());
-        ctx.display->footer("Esc=stop & save");
-    }
-
+    ctx.gps->update();
     if (ctx.input->poll().key == Key::Back) return false;
     return true;
 }

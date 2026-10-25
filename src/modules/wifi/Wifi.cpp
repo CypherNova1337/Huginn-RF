@@ -88,6 +88,7 @@ bool WifiModule::loop(Context& ctx) {
     switch (view_) {
         case View::Menu:      break;
         case View::Scan:      return loopScan(ctx);
+        case View::Target:    return loopTarget(ctx);
         case View::Sniffer:   return loopSniffer(ctx, /*eapolOnly=*/false);
         case View::Handshake: return loopSniffer(ctx, /*eapolOnly=*/true);
         case View::Deauth:    return loopDeauth(ctx);
@@ -123,48 +124,98 @@ bool WifiModule::loop(Context& ctx) {
 }
 
 // --- Scan ------------------------------------------------------------------
+// Non-blocking, continuously-refreshing scrollable AP list. Open networks are
+// flagged red. Enter sets the channel used by handshake capture / deauth.
 void WifiModule::doScan(Context& ctx) {
-    ctx.display->clear(); ctx.display->header("WiFi Scan");
-    ctx.display->line(0, "Scanning...", 0xFFE0);
-    int n = WiFi.scanNetworks(false, true);
-    aps_.clear(); scanSel_ = 0;
-    for (int i = 0; i < n; ++i) {
-        Ap ap; ap.ssid = WiFi.SSID(i); memcpy(ap.bssid, WiFi.BSSID(i), 6);
-        ap.rssi = WiFi.RSSI(i); ap.ch = WiFi.channel(i); ap.enc = (uint8_t)WiFi.encryptionType(i);
-        aps_.push_back(ap);
-    }
-    WiFi.scanDelete();
-    if (ctx.log) ctx.log->info("WiFi scan: %d APs", (int)aps_.size());
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(true);
+    WiFi.scanNetworks(true, true);   // async, include hidden
+    scanSel_ = 0;
 }
 
 bool WifiModule::loopScan(Context& ctx) {
-    if (aps_.empty()) {
-        ctx.display->clear(); ctx.display->header("WiFi Scan");
-        ctx.display->line(0, "No APs. R=rescan", 0x8410);
-        ctx.display->footer("Esc=back");
-        KeyEvent e = ctx.input->poll();
-        if (e.key == Key::Back) { view_ = View::Menu; }
-        if (e.key == Key::Char && (e.ch=='r'||e.ch=='R')) doScan(ctx);
-        delay(20); return true;
+    int st = WiFi.scanComplete();
+    if (st >= 0) {                                   // results ready
+        aps_.clear();
+        for (int i = 0; i < st; ++i) {
+            Ap ap; ap.ssid = WiFi.SSID(i); memcpy(ap.bssid, WiFi.BSSID(i), 6);
+            ap.rssi = WiFi.RSSI(i); ap.ch = WiFi.channel(i);
+            ap.enc = (uint8_t)WiFi.encryptionType(i);
+            aps_.push_back(ap);
+        }
+        WiFi.scanDelete();
+        WiFi.scanNetworks(true, true);               // kick a fresh sweep
+    } else if (st == WIFI_SCAN_FAILED) {
+        WiFi.scanNetworks(true, true);
     }
-    const Ap& a = aps_[scanSel_];
-    ctx.display->clear(); ctx.display->header("WiFi Scan");
-    ctx.display->printf(0, 0xFFFF, "%s", a.ssid.length()? a.ssid.c_str() : "<hidden>");
-    ctx.display->printf(1, 0x8410, "%02X:%02X:%02X:%02X:%02X:%02X",
-        a.bssid[0],a.bssid[1],a.bssid[2],a.bssid[3],a.bssid[4],a.bssid[5]);
-    ctx.display->printf(2, 0x07E0, "ch %u  %ddBm  enc=%u", a.ch, (int)a.rssi, a.enc);
-    ctx.display->printf(3, 0x8410, "%d/%d  Enter=set capture ch", scanSel_+1, (int)aps_.size());
-    ctx.display->footer("Up/Down  R=rescan  Esc=back");
+    bool scanning = (WiFi.scanComplete() == WIFI_SCAN_RUNNING);
+    if (scanSel_ >= (int)aps_.size()) scanSel_ = aps_.empty() ? 0 : (int)aps_.size() - 1;
+
+    ctx.display->clear();
+    char title[28];
+    snprintf(title, sizeof(title), "WiFi  %d AP%s", (int)aps_.size(), scanning ? "  ." : "");
+    ctx.display->header(title);
+    if (aps_.empty()) {
+        ctx.display->line(0, scanning ? "scanning..." : "no APs found", 0x8410);
+    } else {
+        int rows = ctx.display->bodyRows();
+        int first = scanSel_ >= rows ? scanSel_ - rows + 1 : 0;
+        for (int r = 0; r < rows && (first + r) < (int)aps_.size(); ++r) {
+            int i = first + r; const Ap& a = aps_[i]; bool s = (i == scanSel_);
+            String name = a.ssid.length() ? a.ssid : String("<hidden>");
+            if (name.length() > 13) name = name.substring(0, 13);
+            char buf[48];
+            snprintf(buf, sizeof(buf), "%s%-13s c%-2u %d",
+                     s ? ">" : " ", name.c_str(), a.ch, (int)a.rssi);
+            uint16_t col = s ? 0xFFE0 : (a.enc == WIFI_AUTH_OPEN ? 0xF800 : 0xFFFF);
+            ctx.display->line(r, buf, col);
+        }
+    }
+    ctx.display->footer("Up/Dn  Enter=target  Esc=back");
 
     KeyEvent e = ctx.input->poll();
     switch (e.key) {
-        case Key::Up:   scanSel_ = (scanSel_ + aps_.size() - 1) % aps_.size(); break;
-        case Key::Down: scanSel_ = (scanSel_ + 1) % aps_.size(); break;
-        case Key::Enter: channel_ = a.ch;    // target channel for handshake capture
-                         if (ctx.log) ctx.log->info("Capture channel set to %u", channel_);
-                         break;
-        case Key::Back: view_ = View::Menu; break;
-        case Key::Char: if (e.ch=='r'||e.ch=='R') doScan(ctx); break;
+        case Key::Up:   if (scanSel_ > 0) scanSel_--; break;
+        case Key::Down: if (scanSel_ < (int)aps_.size() - 1) scanSel_++; break;
+        case Key::Enter:
+            if (!aps_.empty()) { targetIdx_ = scanSel_; targetSel_ = 0;
+                                 WiFi.scanDelete(); view_ = View::Target; }
+            break;
+        case Key::Back: WiFi.scanDelete(); view_ = View::Menu; break;
+        default: break;
+    }
+    delay(10); return true;
+}
+
+// Per-target action menu: run an attack against the specific AP you picked
+// (works for hidden networks too — they're targeted by BSSID).
+bool WifiModule::loopTarget(Context& ctx) {
+    if (aps_.empty() || targetIdx_ >= (int)aps_.size()) { view_ = View::Scan; return true; }
+    const Ap& a = aps_[targetIdx_];
+
+    ctx.display->clear();
+    ctx.display->header("WiFi target");
+    ctx.display->printf(0, 0xFFFF, "%s", a.ssid.length() ? a.ssid.c_str() : "<hidden>");
+    ctx.display->printf(1, 0x8410, "%02X:%02X:%02X:%02X:%02X:%02X c%u",
+        a.bssid[0],a.bssid[1],a.bssid[2],a.bssid[3],a.bssid[4],a.bssid[5], a.ch);
+    static const char* acts[] = {"Capture handshake", "Deauth this AP", "Sniff channel"};
+    const int N = 3;
+    for (int i = 0; i < N; ++i)
+        ctx.display->line(3 + i, (String(i==targetSel_?"> ":"  ") + acts[i]).c_str(),
+                          i==targetSel_ ? 0xFFE0 : 0xFFFF);
+    ctx.display->footer("Up/Dn  Enter=run  Esc=back");
+
+    KeyEvent e = ctx.input->poll();
+    switch (e.key) {
+        case Key::Up:   targetSel_ = (targetSel_ + N - 1) % N; break;
+        case Key::Down: targetSel_ = (targetSel_ + 1) % N; break;
+        case Key::Back: view_ = View::Scan; break;
+        case Key::Enter:
+            channel_ = a.ch;                 // lock all actions to this AP's channel
+            if (targetSel_ == 0)      { if (startPromiscuous(ctx, true))  view_ = View::Handshake; }
+            else if (targetSel_ == 1) { scanSel_ = targetIdx_; view_ = View::Deauth; }
+            else                      { if (startPromiscuous(ctx, false)) view_ = View::Sniffer; }
+            break;
         default: break;
     }
     delay(10); return true;

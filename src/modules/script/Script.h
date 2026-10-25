@@ -21,7 +21,7 @@ public:
     bool loop(Context& ctx) override;
 
 private:
-    enum class View { List, Run };
+    enum class View { List, Run, Edit };
     View view_ = View::List;
 
     void listScripts(Context& ctx);
@@ -29,8 +29,18 @@ private:
     void execIr(Context& ctx, const String& path);
     void pushOut(const String& s);
 
+    // On-device editor: create/edit .hsc scripts with the keyboard.
+    void openEditor(Context& ctx, const String& path);   // "" = new file
+    bool loopEdit(Context& ctx);
+    void saveEditor(Context& ctx);
+
     std::vector<String> files_;
     int  sel_ = 0;
     String out_[6];
     int  outN_ = 0;
+
+    std::vector<String> edLines_;   // buffer being edited
+    String edPath_;                 // target file
+    int    edCur_ = 0;              // cursor line
+    bool   edDirty_ = false;
 };

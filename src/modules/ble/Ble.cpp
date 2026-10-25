@@ -20,7 +20,15 @@ static BleKeyboard s_bleKb("Huginn", "Huginn", 100);
 // can't run at once, so the HID build drops the scanner to avoid a stack clash.
 
 void BleModule::enter(Context& ctx) {
-    view_ = View::Menu; menuSel_ = 0;
+    menuSel_ = 0;
+#ifdef HUGINN_ENABLE_BLE_HID
+    view_ = View::Menu;
+#else
+    // Go straight to a live scan (no pointless 1-item menu).
+    BLEDevice::init("");
+    devs_.clear(); scanSel_ = 0; lastScanMs_ = 0;
+    view_ = View::Scan;
+#endif
 }
 
 void BleModule::exit(Context& ctx) {
@@ -33,13 +41,15 @@ void BleModule::exit(Context& ctx) {
 
 bool BleModule::loop(Context& ctx) {
     switch (view_) {
-        case View::Scan: return loopScan(ctx);
-#ifdef HUGINN_ENABLE_BLE_HID
-        case View::Hid:  return loopHid(ctx);
+        case View::Scan:   return loopScan(ctx);
+#ifndef HUGINN_ENABLE_BLE_HID
+        case View::Detail: return loopDetail(ctx);
 #else
-        case View::Hid:  view_ = View::Menu; break;
+        case View::Detail: view_ = View::Menu; break;
+        case View::Hid:    return loopHid(ctx);
 #endif
         case View::Menu: break;
+        default: break;
     }
 
 #ifdef HUGINN_ENABLE_BLE_HID
@@ -70,50 +80,84 @@ bool BleModule::loop(Context& ctx) {
 
 // --- Scan (core build) -----------------------------------------------------
 #ifndef HUGINN_ENABLE_BLE_HID
+// One 2s sweep; merges results into the live list (dedup by address) and grabs
+// whatever the advertisement exposes (name, service UUID, manufacturer, type).
 void BleModule::doScan(Context& ctx) {
-    ctx.display->clear(); ctx.display->header("BLE Scan");
-    ctx.display->line(0, "Scanning 5s...", 0xFFE0);
+    ctx.display->footer("scanning BLE...");
+    ctx.display->present();
     BLEScan* scan = BLEDevice::getScan();
     scan->setActiveScan(true); scan->setInterval(100); scan->setWindow(99);
-    BLEScanResults res = scan->start(5, false);
-    devs_.clear(); scanSel_ = 0;
+    BLEScanResults res = scan->start(2, false);
     for (int i = 0; i < res.getCount(); ++i) {
         BLEAdvertisedDevice d = res.getDevice(i);
-        Dev dev;
-        dev.name = d.haveName() ? String(d.getName().c_str()) : String("<unknown>");
-        dev.addr = String(d.getAddress().toString().c_str());
-        dev.rssi = d.haveRSSI() ? d.getRSSI() : 0;
-        devs_.push_back(dev);
+        String addr = String(d.getAddress().toString().c_str());
+        int rssi = d.haveRSSI() ? d.getRSSI() : -100;
+        int slot = -1;
+        for (int j = 0; j < (int)devs_.size(); ++j) if (devs_[j].addr == addr) { slot = j; break; }
+        if (slot < 0) { devs_.push_back(Dev()); slot = devs_.size() - 1; devs_[slot].addr = addr; }
+        Dev& dev = devs_[slot];
+        dev.rssi = rssi;
+        if (d.haveName()) dev.name = String(d.getName().c_str());
+        if (d.haveServiceUUID()) dev.svc = String(d.getServiceUUID().toString().c_str());
+        if (d.haveAppearance()) dev.appearance = d.getAppearance();
+        if (d.haveManufacturerData()) {
+            String raw = String(d.getManufacturerData().c_str());
+            String hex; for (size_t k = 0; k < raw.length() && k < 8; ++k) {
+                char b[4]; snprintf(b, sizeof(b), "%02X", (uint8_t)raw[k]); hex += b; }
+            dev.mfg = hex;
+        }
     }
     scan->clearResults();
-    if (ctx.log) ctx.log->info("BLE scan: %d devices", (int)devs_.size());
 }
 
 bool BleModule::loopScan(Context& ctx) {
+    if (millis() - lastScanMs_ > 300) { lastScanMs_ = millis(); doScan(ctx); }
+    if (scanSel_ >= (int)devs_.size()) scanSel_ = devs_.empty() ? 0 : devs_.size() - 1;
+
+    ctx.display->clear();
+    char title[24]; snprintf(title, sizeof(title), "BLE  %d dev", (int)devs_.size());
+    ctx.display->header(title);
     if (devs_.empty()) {
-        ctx.display->clear(); ctx.display->header("BLE Scan");
-        ctx.display->line(0, "No devices. R=rescan", 0x8410);
-        ctx.display->footer("Esc=back");
-        KeyEvent e = ctx.input->poll();
-        if (e.key == Key::Back) view_ = View::Menu;
-        if (e.key == Key::Char && (e.ch=='r'||e.ch=='R')) doScan(ctx);
-        delay(20); return true;
+        ctx.display->line(0, "scanning... none yet", 0x8410);
+    } else {
+        int rows = ctx.display->bodyRows();
+        int first = scanSel_ >= rows ? scanSel_ - rows + 1 : 0;
+        for (int r = 0; r < rows && (first + r) < (int)devs_.size(); ++r) {
+            int i = first + r; const Dev& d = devs_[i]; bool s = (i == scanSel_);
+            String nm = d.name.length() ? d.name : d.addr.substring(9);  // tail of MAC
+            if (nm.length() > 14) nm = nm.substring(0, 14);
+            char buf[44];
+            snprintf(buf, sizeof(buf), "%s%-14s %d", s ? ">" : " ", nm.c_str(), d.rssi);
+            ctx.display->line(r, buf, s ? 0xFFE0 : (d.rssi > -60 ? 0x07E0 : 0xFFFF));
+        }
     }
-    const Dev& d = devs_[scanSel_];
-    ctx.display->clear(); ctx.display->header("BLE Scan");
-    ctx.display->printf(0, 0xFFFF, "%s", d.name.c_str());
-    ctx.display->printf(1, 0x8410, "%s", d.addr.c_str());
-    ctx.display->printf(2, 0x07E0, "%d dBm   %d/%d", d.rssi, scanSel_+1, (int)devs_.size());
-    ctx.display->footer("Up/Dn  R=rescan  Esc=back");
+    ctx.display->footer("Up/Dn  Enter=detail  Esc=back");
+
     KeyEvent e = ctx.input->poll();
     switch (e.key) {
-        case Key::Up:   scanSel_ = (scanSel_ + devs_.size() - 1) % devs_.size(); break;
-        case Key::Down: scanSel_ = (scanSel_ + 1) % devs_.size(); break;
-        case Key::Back: view_ = View::Menu; break;
-        case Key::Char: if (e.ch=='r'||e.ch=='R') doScan(ctx); break;
+        case Key::Up:   if (scanSel_ > 0) scanSel_--; break;
+        case Key::Down: if (scanSel_ < (int)devs_.size() - 1) scanSel_++; break;
+        case Key::Enter: if (!devs_.empty()) view_ = View::Detail; break;
+        case Key::Back:  view_ = View::Menu; return true;
         default: break;
     }
     delay(10); return true;
+}
+
+bool BleModule::loopDetail(Context& ctx) {
+    if (devs_.empty() || scanSel_ >= (int)devs_.size()) { view_ = View::Scan; return true; }
+    const Dev& d = devs_[scanSel_];
+    ctx.display->clear();
+    ctx.display->header("BLE device");
+    ctx.display->printf(0, 0xFFFF, "%s", d.name.length() ? d.name.c_str() : "<no name>");
+    ctx.display->printf(1, 0x8410, "%s", d.addr.c_str());
+    ctx.display->printf(2, 0x07E0, "RSSI %d dBm", d.rssi);
+    ctx.display->printf(3, 0xFFFF, "svc: %s", d.svc.length() ? d.svc.c_str() : "-");
+    ctx.display->printf(4, 0xFFFF, "mfg: %s", d.mfg.length() ? d.mfg.c_str() : "-");
+    ctx.display->printf(5, 0x8410, "appearance: %d", d.appearance);
+    ctx.display->footer("Esc=back to list");
+    if (ctx.input->poll().key == Key::Back) view_ = View::Scan;
+    delay(20); return true;
 }
 #else
 // Scan is unavailable in the HID build; keep a stub so the view compiles.

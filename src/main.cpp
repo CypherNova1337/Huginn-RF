@@ -32,6 +32,7 @@ static void splash(const char* line1, const char* line2) {
     s_display.header("Huginn-RF " HUGINN_VERSION);
     s_display.line(0, line1, 0xFFFF);
     if (line2) s_display.line(1, line2, 0x8410);
+    s_display.present();
 }
 
 void setup() {

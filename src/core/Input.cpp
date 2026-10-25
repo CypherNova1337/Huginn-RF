@@ -32,9 +32,9 @@ KeyEvent Input::poll() {
     return {};
 }
 
-bool Input::readLine(const char* prompt, String& out, bool mask) {
+bool Input::readLine(const char* prompt, String& out, bool mask, bool keepInitial) {
     auto& d = M5Cardputer.Display;
-    out = "";
+    if (!keepInitial) out = "";
     uint32_t lastDraw = 0;
     for (;;) {
         M5Cardputer.update();

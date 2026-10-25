@@ -62,9 +62,12 @@ void ReconModule::stopCapture() {
 void ReconModule::maybeBleScan(Context& ctx) {
     if (millis() - lastBleMs_ < bleEveryMs_) return;
     lastBleMs_ = millis();
+    // Keep the screen alive during the (brief, blocking) BLE sweep.
+    ctx.display->footer("+ BLE scan...");
+    ctx.display->present();
     BLEScan* scan = BLEDevice::getScan();
     scan->setActiveScan(true); scan->setInterval(80); scan->setWindow(60);
-    BLEScanResults res = scan->start(2, false);
+    BLEScanResults res = scan->start(1, false);   // 1s keeps WiFi recon responsive
     for (int i = 0; i < res.getCount(); ++i) {
         BLEAdvertisedDevice d = res.getDevice(i);
         int rssi = d.haveRSSI() ? d.getRSSI() : -100;
@@ -131,11 +134,21 @@ bool ReconModule::loopList(Context& ctx) {
         for (int r = 0; r < rows && (first + r) < m; ++r) {
             int e = idx[first + r];
             bool s = (first + r == sel_);
-            char line[40];
-            snprintf(line, sizeof(line), "%s %s %02X%02X%02X %ddBm",
-                     s ? ">" : " ", g_tbl[e].kind ? "BLE " : "WiFi",
-                     g_tbl[e].mac[3], g_tbl[e].mac[4], g_tbl[e].mac[5], g_tbl[e].rssi);
-            ctx.display->line(1 + r, line, s ? 0xFFE0 : 0xFFFF);
+            // Signal bar: map RSSI (-90..-40) -> 0..5 blocks. Closer = fuller.
+            int rssi = g_tbl[e].rssi;
+            int clamp = rssi < -90 ? -90 : (rssi > -40 ? -40 : rssi);
+            int bars = (clamp + 90) * 5 / 50;
+            char bar[6]; int bi = 0;
+            for (; bi < bars && bi < 5; ++bi) bar[bi] = '|';
+            for (; bi < 5; ++bi) bar[bi] = '.';
+            bar[5] = 0;
+            char line[48];
+            snprintf(line, sizeof(line), "%s%s %s %02X%02X%02X %d",
+                     s ? ">" : " ", bar, g_tbl[e].kind ? "BLE" : "WiF",
+                     g_tbl[e].mac[3], g_tbl[e].mac[4], g_tbl[e].mac[5], rssi);
+            // Colour by proximity: near=green, mid=white, far=grey.
+            uint16_t col = s ? 0xFFE0 : (rssi > -55 ? 0x07E0 : (rssi > -75 ? 0xFFFF : 0x8410));
+            ctx.display->line(1 + r, line, col);
         }
         ctx.display->footer("Up/Dn  Enter=track  Esc=back");
     }

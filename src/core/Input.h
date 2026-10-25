@@ -24,7 +24,9 @@ public:
 
     // Blocking line editor drawn at the given display row. Returns when Enter
     // is pressed (true) or Esc/Back (false). `out` holds the typed text.
-    bool readLine(const char* prompt, String& out, bool mask = false);
+    // keepInitial=true starts editing from out's current value (for edits).
+    bool readLine(const char* prompt, String& out, bool mask = false,
+                  bool keepInitial = false);
 
 private:
     uint32_t lastPollMs_ = 0;

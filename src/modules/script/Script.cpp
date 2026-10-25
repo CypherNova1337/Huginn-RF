@@ -133,31 +133,118 @@ bool ScriptModule::loop(Context& ctx) {
         if (ctx.input->poll().key == Key::Back) { view_ = View::List; }
         delay(20); return true;
     }
+    if (view_ == View::Edit) return loopEdit(ctx);
 
-    if (files_.empty()) {
-        ctx.display->clear(); ctx.display->header("Scripts");
-        ctx.display->line(0, "No .hsc in /huginn/scripts", 0xF800);
-        ctx.display->footer("Esc=back");
-        if (ctx.input->poll().key == Key::Back) return false;
-        delay(20); return true;
-    }
-
+    // Row 0 is always "[+ new script]"; real files follow.
+    int total = (int)files_.size() + 1;
+    if (sel_ >= total) sel_ = total - 1;
     ctx.display->clear(); ctx.display->header("Scripts");
     int rows = ctx.display->bodyRows();
     int first = sel_ >= rows ? sel_ - rows + 1 : 0;
-    for (int r = 0; r < rows && (first + r) < (int)files_.size(); ++r) {
+    for (int r = 0; r < rows && (first + r) < total; ++r) {
         int i = first + r; bool s = (i == sel_);
-        String n = files_[i]; int sl = n.lastIndexOf('/'); if (sl >= 0) n = n.substring(sl + 1);
-        ctx.display->line(r, ((s ? "> " : "  ") + n).c_str(), s ? 0xFFE0 : 0xFFFF);
+        String n;
+        if (i == 0) n = "[+ new script]";
+        else { n = files_[i-1]; int sl = n.lastIndexOf('/'); if (sl >= 0) n = n.substring(sl + 1); }
+        ctx.display->line(r, ((s ? "> " : "  ") + n).c_str(),
+                          s ? 0xFFE0 : (i == 0 ? 0x07E0 : 0xFFFF));
     }
-    ctx.display->footer("Up/Dn  Enter=run  Esc=back");
+    ctx.display->footer("Enter=run  E=edit  Esc=back");
 
     KeyEvent e = ctx.input->poll();
     switch (e.key) {
-        case Key::Up:   sel_ = (sel_ + files_.size() - 1) % files_.size(); break;
-        case Key::Down: sel_ = (sel_ + 1) % files_.size(); break;
-        case Key::Enter: view_ = View::Run; run(ctx, files_[sel_]); break;
+        case Key::Up:   sel_ = (sel_ + total - 1) % total; break;
+        case Key::Down: sel_ = (sel_ + 1) % total; break;
+        case Key::Enter:
+            if (sel_ == 0) openEditor(ctx, "");                 // new file
+            else { view_ = View::Run; run(ctx, files_[sel_-1]); }
+            break;
+        case Key::Char:
+            if ((e.ch == 'e' || e.ch == 'E') && sel_ > 0) openEditor(ctx, files_[sel_-1]);
+            break;
         case Key::Back: return false;
+        default: break;
+    }
+    delay(10);
+    return true;
+}
+
+// --- On-device editor ------------------------------------------------------
+void ScriptModule::openEditor(Context& ctx, const String& path) {
+    edLines_.clear(); edCur_ = 0; edDirty_ = false;
+    if (path.length()) {
+        edPath_ = path;
+        File f = ctx.sd->fs().open(path.c_str(), FILE_READ);
+        while (f && f.available()) { String l = f.readStringUntil('\n'); l.trim(); edLines_.push_back(l); }
+        if (f) f.close();
+    } else {
+        // New file: ask for a name under the scripts dir.
+        String dir = ctx.config->getString("script.dir", "/huginn/scripts");
+        String name;
+        if (!ctx.input->readLine("new name:", name) || name.length() == 0) return;
+        if (!name.endsWith(".hsc")) name += ".hsc";
+        edPath_ = dir + "/" + name;
+        if (ctx.sd) ctx.sd->mkdirs(dir.c_str());
+    }
+    if (edLines_.empty()) edLines_.push_back("");
+    view_ = View::Edit;
+}
+
+void ScriptModule::saveEditor(Context& ctx) {
+    if (!ctx.sd) return;
+    File f = ctx.sd->fs().open(edPath_.c_str(), FILE_WRITE);
+    if (!f) return;
+    for (auto& l : edLines_) f.println(l);
+    f.close();
+    edDirty_ = false;
+    if (ctx.log) ctx.log->info("Script saved: %s (%u lines)", edPath_.c_str(), (unsigned)edLines_.size());
+    listScripts(ctx);                 // refresh the file list
+}
+
+bool ScriptModule::loopEdit(Context& ctx) {
+    if (edCur_ >= (int)edLines_.size()) edCur_ = edLines_.empty() ? 0 : edLines_.size() - 1;
+
+    ctx.display->clear();
+    char title[28];
+    String base = edPath_; int sl = base.lastIndexOf('/'); if (sl >= 0) base = base.substring(sl + 1);
+    snprintf(title, sizeof(title), "%s%s", base.c_str(), edDirty_ ? " *" : "");
+    ctx.display->header(title);
+
+    int rows = ctx.display->bodyRows() - 1;
+    int first = edCur_ >= rows ? edCur_ - rows + 1 : 0;
+    for (int r = 0; r < rows && (first + r) < (int)edLines_.size(); ++r) {
+        int i = first + r; bool s = (i == edCur_);
+        String l = edLines_[i]; if (l.length() > 26) l = l.substring(0, 26);
+        char buf[40];
+        snprintf(buf, sizeof(buf), "%s%s", s ? ">" : " ", l.c_str());
+        ctx.display->line(r, buf, s ? 0xFFE0 : 0xFFFF);
+    }
+    ctx.display->line(rows, "Enter=edit N=new D=del S=save R=run", 0x5D9F);
+    ctx.display->footer("Up/Dn move   Esc=back");
+
+    KeyEvent e = ctx.input->poll();
+    switch (e.key) {
+        case Key::Up:   if (edCur_ > 0) edCur_--; break;
+        case Key::Down: if (edCur_ < (int)edLines_.size() - 1) edCur_++; break;
+        case Key::Enter: {                               // edit current line
+            String v = edLines_[edCur_];
+            if (ctx.input->readLine("line:", v, false, true)) { edLines_[edCur_] = v; edDirty_ = true; }
+            break;
+        }
+        case Key::Char:
+            if (e.ch == 'n' || e.ch == 'N') {
+                edLines_.insert(edLines_.begin() + edCur_ + 1, String(""));
+                edCur_++; edDirty_ = true;
+            } else if (e.ch == 'd' || e.ch == 'D') {
+                if (edLines_.size() > 1) { edLines_.erase(edLines_.begin() + edCur_); edDirty_ = true; }
+                else edLines_[0] = "";
+            } else if (e.ch == 's' || e.ch == 'S') {
+                saveEditor(ctx);
+            } else if (e.ch == 'r' || e.ch == 'R') {
+                saveEditor(ctx); view_ = View::Run; run(ctx, edPath_);
+            }
+            break;
+        case Key::Back: view_ = View::List; break;
         default: break;
     }
     delay(10);
