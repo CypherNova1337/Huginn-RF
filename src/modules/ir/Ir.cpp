@@ -63,32 +63,79 @@ void IrModule::loadLibrary(Context& ctx) {
     if (d) d.close();
 }
 
+// Encode a Flipper "parsed" code (protocol + address/command bytes) to timings.
+// Returns empty for protocols we can't synthesise yet (RC6, Kaseikyo, ...).
+static std::vector<uint16_t> encodeParsed(const String& proto, const uint8_t* a,
+                                          const uint8_t* c, uint16_t& freq) {
+    freq = 38000;
+    if (proto == "NEC")        return irtx::encodeNEC(a[0], c[0]);
+    if (proto == "NECext" || proto == "NEC42" || proto == "NEC42ext")
+                               return irtx::encodeNECext(a[0] | (a[1] << 8), c[0]);
+    if (proto == "Samsung32")  return irtx::encodeSamsung(a[0], c[0]);
+    if (proto == "SIRC")       { freq = 40000; return irtx::encodeSony12(c[0] & 0x7F, a[0] & 0x1F); }
+    if (proto == "SIRC20")     { freq = 40000; return irtx::encodeSony20(c[0] & 0x7F, a[0] | (a[1] << 8)); }
+    if (proto == "RC5" || proto == "RC5X") { freq = 36000; return irtx::encodeRC5(a[0] & 0x1F, c[0] & 0x3F); }
+    return {};
+}
+
+static void parseHexBytes(const String& s, uint8_t* out, int n) {
+    for (int i = 0; i < n; ++i) out[i] = 0;
+    int idx = 0, start = 0;
+    while (start < (int)s.length() && idx < n) {
+        int sp = s.indexOf(' ', start); if (sp < 0) sp = s.length();
+        String tok = s.substring(start, sp); tok.trim();
+        if (tok.length()) out[idx++] = (uint8_t)strtol(tok.c_str(), nullptr, 16);
+        start = sp + 1;
+    }
+}
+
+// Reads both Flipper formats: "type: raw" (data: timings) and "type: parsed"
+// (protocol/address/command) — so real Flipper IRDB libraries work directly.
 void IrModule::loadFile(Context& ctx, const char* path) {
     codes_.clear(); sel_ = 0; blasting_ = false;
     if (!ctx.sd || !ctx.sd->exists(path)) return;
     File f = ctx.sd->fs().open(path, FILE_READ);
     if (!f) return;
-    Code cur; bool have = false;
+
+    String name, type, proto; uint16_t freq = 38000;
+    std::vector<uint16_t> raw; uint8_t addr[4] = {0}, cmd[4] = {0};
+    bool have = false;
+
+    auto flush = [&]() {
+        if (!have) return;
+        Code cur; cur.name = name;
+        if (type == "parsed" && proto.length()) {
+            uint16_t fr; cur.timings = encodeParsed(proto, addr, cmd, fr); cur.freq = fr;
+        } else { cur.timings = raw; cur.freq = freq; }
+        if (!cur.timings.empty()) codes_.push_back(cur);
+    };
+
     while (f.available()) {
         String line = f.readStringUntil('\n'); line.trim();
         if (line.startsWith("#") || line.length() == 0) continue;
         if (line.startsWith("name:")) {
-            if (have) codes_.push_back(cur);
-            cur = Code(); cur.name = line.substring(5); cur.name.trim(); have = true;
-        } else if (line.startsWith("frequency:")) {
-            cur.freq = line.substring(10).toInt();
-        } else if (line.startsWith("data:")) {
+            flush();
+            name = line.substring(5); name.trim();
+            type = ""; proto = ""; freq = 38000; raw.clear();
+            for (int i = 0; i < 4; ++i) { addr[i] = 0; cmd[i] = 0; }
+            have = true;
+        } else if (line.startsWith("type:"))      { type  = line.substring(5);  type.trim(); }
+        else if (line.startsWith("protocol:"))    { proto = line.substring(9);  proto.trim(); }
+        else if (line.startsWith("frequency:"))   { freq  = line.substring(10).toInt(); }
+        else if (line.startsWith("address:"))     { parseHexBytes(line.substring(8), addr, 4); }
+        else if (line.startsWith("command:"))     { parseHexBytes(line.substring(8), cmd, 4); }
+        else if (line.startsWith("data:")) {
             String d = line.substring(5); d.trim();
             int start = 0;
             while (start < (int)d.length()) {
                 int sp = d.indexOf(' ', start); if (sp < 0) sp = d.length();
                 String tok = d.substring(start, sp);
-                if (tok.length()) cur.timings.push_back((uint16_t)tok.toInt());
+                if (tok.length()) raw.push_back((uint16_t)tok.toInt());
                 start = sp + 1;
             }
         }
     }
-    if (have) codes_.push_back(cur);
+    flush();
     f.close();
 }
 
