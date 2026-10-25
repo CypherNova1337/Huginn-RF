@@ -39,6 +39,11 @@ recon:
   ble_every_seconds: 6       # interleave a short BLE scan this often
   min_rssi: -95
 
+meshtastic:
+  # Frequency the Meshtastic monitor listens on (US LongFast ~906.875 MHz;
+  # EU868 ~869.525). The Activity scan also tries common presets automatically.
+  freq_mhz: 906.875
+
 messenger:
   # AES-GCM encrypted point-to-point text over the configured frequency.
   channel: 7
