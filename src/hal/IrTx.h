@@ -20,5 +20,7 @@ std::vector<uint16_t> encodeNEC(uint8_t addr, uint8_t cmd);          // 38 kHz
 std::vector<uint16_t> encodeNECext(uint16_t addr16, uint8_t cmd);    // 38 kHz
 std::vector<uint16_t> encodeSamsung(uint8_t addr, uint8_t cmd);      // 38 kHz
 std::vector<uint16_t> encodeSony12(uint8_t cmd7, uint8_t addr5);     // 40 kHz
+std::vector<uint16_t> encodeSony20(uint8_t cmd7, uint16_t addr13);   // 40 kHz
+std::vector<uint16_t> encodeRC5(uint8_t addr5, uint8_t cmd6);        // 36 kHz (Manchester)
 
 } // namespace irtx

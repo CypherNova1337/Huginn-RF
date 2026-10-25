@@ -65,8 +65,11 @@ Works with the hardware on hand (Cardputer ADV + LoRa-1262 cap):
   ⬜ Meshtastic observer, ⬜ RF spectrum sweep. (LoRaWAN sniff/fuzz dropped —
   one SX1262 can't follow LoRaWAN's channel+SF hopping, so it caught almost
   nothing; not worth shipping on this cap.)
-- **IR:** ✅ TX raw/.ir/TV-B-Gone, ✅ NEC/NEC-ext/Samsung/Sony encoders
-  ("type a code"), ⬜ RC5/RC6 (Manchester).
+- **IR:** ✅ library browser (Flipper .ir by brand), ✅ encoders NEC/NEC-ext/
+  Samsung/Sony-12/Sony-20/RC5, ✅ smart power blast, ✅ NEC brute sweep,
+  ✅ save codes on-device, ⬜ RC6/Panasonic, ⬜ RX decode (needs ext. receiver).
+- **LoRa recon:** ✅ activity scanner (preset sweep), ✅ Meshtastic monitor
+  (node IDs), ⬜ decode more packet types.
 - **USB/HID:** ✅ BadUSB DuckyScript, ⬜ payload library, ⬜ USB mass-storage.
 - **Platform:** ✅ scripting engine (.hsc macros from SD), ✅ on-device script
   editor (create/edit/run with the keyboard), ⬜ more script verbs,
