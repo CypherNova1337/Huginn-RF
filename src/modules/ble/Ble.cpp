@@ -5,6 +5,7 @@
 #include "../../core/SdCard.h"
 #include "../../core/Config.h"
 #include "../../core/Logger.h"
+#include "../../hal/Vendor.h"
 #include <FS.h>
 
 #ifdef HUGINN_ENABLE_BLE_HID
@@ -101,10 +102,14 @@ void BleModule::doScan(Context& ctx) {
         if (d.haveServiceUUID()) dev.svc = String(d.getServiceUUID().toString().c_str());
         if (d.haveAppearance()) dev.appearance = d.getAppearance();
         if (d.haveManufacturerData()) {
-            String raw = String(d.getManufacturerData().c_str());
-            String hex; for (size_t k = 0; k < raw.length() && k < 8; ++k) {
+            std::string raw = d.getManufacturerData();
+            String hex; for (size_t k = 0; k < raw.size() && k < 8; ++k) {
                 char b[4]; snprintf(b, sizeof(b), "%02X", (uint8_t)raw[k]); hex += b; }
             dev.mfg = hex;
+            if (raw.size() >= 2) {   // first 2 bytes = company ID (little-endian)
+                uint16_t cid = (uint8_t)raw[0] | ((uint8_t)raw[1] << 8);
+                dev.vendor = vendor::forCompanyId(cid);
+            }
         }
     }
     scan->clearResults();
@@ -124,7 +129,8 @@ bool BleModule::loopScan(Context& ctx) {
         int first = scanSel_ >= rows ? scanSel_ - rows + 1 : 0;
         for (int r = 0; r < rows && (first + r) < (int)devs_.size(); ++r) {
             int i = first + r; const Dev& d = devs_[i]; bool s = (i == scanSel_);
-            String nm = d.name.length() ? d.name : d.addr.substring(9);  // tail of MAC
+            String nm = d.name.length() ? d.name
+                      : (d.vendor.length() ? d.vendor : d.addr.substring(9));
             if (nm.length() > 14) nm = nm.substring(0, 14);
             char buf[44];
             snprintf(buf, sizeof(buf), "%s%-14s %d", s ? ">" : " ", nm.c_str(), d.rssi);
@@ -150,11 +156,12 @@ bool BleModule::loopDetail(Context& ctx) {
     ctx.display->clear();
     ctx.display->header("BLE device");
     ctx.display->printf(0, 0xFFFF, "%s", d.name.length() ? d.name.c_str() : "<no name>");
-    ctx.display->printf(1, 0x8410, "%s", d.addr.c_str());
-    ctx.display->printf(2, 0x07E0, "RSSI %d dBm", d.rssi);
-    ctx.display->printf(3, 0xFFFF, "svc: %s", d.svc.length() ? d.svc.c_str() : "-");
-    ctx.display->printf(4, 0xFFFF, "mfg: %s", d.mfg.length() ? d.mfg.c_str() : "-");
-    ctx.display->printf(5, 0x8410, "appearance: %d", d.appearance);
+    ctx.display->printf(1, 0x07E0, "vendor: %s", d.vendor.length() ? d.vendor.c_str() : "?");
+    ctx.display->printf(2, 0x8410, "%s", d.addr.c_str());
+    ctx.display->printf(3, 0xFFFF, "RSSI %d dBm", d.rssi);
+    ctx.display->printf(4, 0xFFFF, "svc: %s", d.svc.length() ? d.svc.c_str() : "-");
+    ctx.display->printf(5, 0x8410, "mfg: %s  app: %d",
+                        d.mfg.length() ? d.mfg.c_str() : "-", d.appearance);
     ctx.display->footer("Esc=back to list");
     if (ctx.input->poll().key == Key::Back) view_ = View::Scan;
     delay(20); return true;

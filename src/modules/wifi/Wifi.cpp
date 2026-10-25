@@ -5,6 +5,7 @@
 #include "../../core/SdCard.h"
 #include "../../core/Config.h"
 #include "../../core/Logger.h"
+#include "../../hal/Vendor.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
@@ -195,9 +196,12 @@ bool WifiModule::loopTarget(Context& ctx) {
 
     ctx.display->clear();
     ctx.display->header("WiFi target");
+    const char* ven = vendor::forOui(a.bssid);
     ctx.display->printf(0, 0xFFFF, "%s", a.ssid.length() ? a.ssid.c_str() : "<hidden>");
     ctx.display->printf(1, 0x8410, "%02X:%02X:%02X:%02X:%02X:%02X c%u",
         a.bssid[0],a.bssid[1],a.bssid[2],a.bssid[3],a.bssid[4],a.bssid[5], a.ch);
+    ctx.display->printf(2, 0x07E0, "vendor: %s  %s",
+        ven[0] ? ven : "?", a.enc == WIFI_AUTH_OPEN ? "OPEN" : "enc");
     static const char* acts[] = {"Capture handshake", "Deauth this AP", "Sniff channel"};
     const int N = 3;
     for (int i = 0; i < N; ++i)

@@ -30,6 +30,21 @@ bool Lora::setFrequency(float freqMhz) {
     return s_radio.setFrequency(freqMhz) == RADIOLIB_ERR_NONE;
 }
 
+bool Lora::reconfigure(float freqMhz, float bwKhz, uint8_t sf, uint8_t cr,
+                       uint8_t syncWord) {
+    if (!ready_) return false;
+    freqMhz_ = freqMhz;
+    bool ok = true;
+    ok &= (s_radio.setFrequency(freqMhz) == RADIOLIB_ERR_NONE);
+    ok &= (s_radio.setBandwidth(bwKhz) == RADIOLIB_ERR_NONE);
+    ok &= (s_radio.setSpreadingFactor(sf) == RADIOLIB_ERR_NONE);
+    ok &= (s_radio.setCodingRate(cr) == RADIOLIB_ERR_NONE);
+    ok &= (s_radio.setSyncWord(syncWord) == RADIOLIB_ERR_NONE);
+    s_radio.startReceive();
+    s_rxFlag = false;
+    return ok;
+}
+
 bool Lora::transmit(const uint8_t* data, size_t len) {
     if (!ready_) return false;
     int st = s_radio.transmit(const_cast<uint8_t*>(data), len);

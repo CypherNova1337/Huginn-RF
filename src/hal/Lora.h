@@ -19,6 +19,12 @@ public:
 
     bool setFrequency(float freqMhz);
 
+    // Retune the whole modem for a different LoRa "preset" (used by the LoRa
+    // activity scanner and the Meshtastic monitor). cr is the 4/x coding-rate
+    // denominator (5..8). Returns true on success; leaves RX running.
+    bool reconfigure(float freqMhz, float bwKhz, uint8_t sf, uint8_t cr,
+                     uint8_t syncWord);
+
     // Blocking transmit of a raw buffer. Returns true on success.
     bool transmit(const uint8_t* data, size_t len);
 

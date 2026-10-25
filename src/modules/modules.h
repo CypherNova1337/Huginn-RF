@@ -8,6 +8,7 @@
 #include "wardrive/Wardrive.h"
 #include "recon/Recon.h"
 #include "lora_sniffer/LoraSniffer.h"
+#include "lora_scan/LoraScan.h"
 #include "messenger/Messenger.h"
 #include "ir/Ir.h"
 #include "script/Script.h"

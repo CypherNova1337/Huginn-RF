@@ -34,8 +34,10 @@
 // RX/TX — the cap silk labels them from the module's point of view.
 // ---------------------------------------------------------------------------
 #define GPS_UART_NUM   1
-#define GPS_PIN_RX    13   // ESP32 RX  <- GPS TX
-#define GPS_PIN_TX    15   // ESP32 TX  -> GPS RX
+// Swapped per hardware test (rx=0 with 13/15): the cap's "G13 RX / G15 TX" are
+// labeled from the GPS module's side, so the ESP reads on G15, writes on G13.
+#define GPS_PIN_RX    15   // ESP32 RX  <- GPS TX (G15)
+#define GPS_PIN_TX    13   // ESP32 TX  -> GPS RX (G13)
 #define GPS_BAUD    9600
 
 // ---------------------------------------------------------------------------
