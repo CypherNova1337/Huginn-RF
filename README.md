@@ -68,7 +68,8 @@ Works with the hardware on hand (Cardputer ADV + LoRa-1262 cap):
 - **IR:** ✅ TX raw/.ir/TV-B-Gone, ✅ NEC/NEC-ext/Samsung/Sony encoders
   ("type a code"), ⬜ RC5/RC6 (Manchester).
 - **USB/HID:** ✅ BadUSB DuckyScript, ⬜ payload library, ⬜ USB mass-storage.
-- **Platform:** ✅ scripting engine (.hsc macros from SD), ⬜ more script verbs,
+- **Platform:** ✅ scripting engine (.hsc macros from SD), ✅ on-device script
+  editor (create/edit/run with the keyboard), ⬜ more script verbs,
   ⬜ on-device config editor, ⬜ OTA update.
 
 Needs add-on hardware you don't currently have (left out until then):
