@@ -21,10 +21,23 @@ gps:
   baud: 9600
 
 wardrive:
-  # Passive logging of sub-GHz / LoRa pings with GPS, exported as WiGLE CSV.
+  # GPS-stamped logging of WiFi APs, BLE devices, and raw LoRa packets,
+  # exported as a WiGLE-ingestible CSV. All passive (receive only).
   csv_prefix: wardrive
-  min_rssi: -120             # ignore anything weaker
+  min_rssi: -95              # ignore anything weaker than this (dBm)
   dedup_seconds: 30          # don't re-log the same source within N seconds
+  log_wifi: true
+  log_ble: true
+  log_lora: false            # single-SF LoRa is opportunistic; off by default
+
+recon:
+  # Live "who's around" presence + lock-on RSSI proximity meter. Passive:
+  # listens to 2.4 GHz WiFi activity (incl. phone probe requests) and BLE.
+  # Note: modern phones randomize their MAC, so this locates a device in the
+  # moment, not a named person over time. Authorized assessments only.
+  forget_seconds: 60         # drop a device from the live list after N s unseen
+  ble_every_seconds: 6       # interleave a short BLE scan this often
+  min_rssi: -95
 
 messenger:
   # AES-GCM encrypted point-to-point text over the configured frequency.
@@ -36,14 +49,6 @@ messenger:
 ir:
   codes_dir: /huginn/ir
   default_file: tvbgone.ir
-
-lorawan_fuzzer:
-  # BACKEND ROBUSTNESS TEST — your own test network server ONLY.
-  # Will not run unless target_is_mine is true AND server is non-default.
-  target_is_mine: false
-  server: ""                 # e.g. 10.0.0.5  (your ChirpStack / private TTN)
-  max_requests_per_min: 30   # hard rate cap; keep it gentle
-  profile: /huginn/payloads/lorawan/join_basic.yaml
 
 wifi:
   authorized_ack_required: true
@@ -60,3 +65,6 @@ ble:
 
 badusb:
   payload_dir: /huginn/payloads/badusb
+
+script:
+  dir: /huginn/scripts          # .hsc / .txt macro scripts

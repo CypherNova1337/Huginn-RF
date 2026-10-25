@@ -29,3 +29,8 @@ jobs:
 
       - name: Build (cardputer_adv)
         run: pio run -e cardputer_adv
+
+      # Experimental BadBLE image; must not block the core build.
+      - name: Build (cardputer_adv_badble)
+        run: pio run -e cardputer_adv_badble
+        continue-on-error: true

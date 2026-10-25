@@ -27,7 +27,7 @@ public:
 private:
     struct Ap { String ssid; uint8_t bssid[6]; int32_t rssi; uint8_t ch; uint8_t enc; };
 
-    enum class View { Menu, Scan, Sniffer, Handshake, Deauth, Portal, Export };
+    enum class View { Menu, Scan, Sniffer, Handshake, Deauth, Portal, Export, Probe };
     View view_ = View::Menu;
     int  menuSel_ = 0;
 
@@ -57,6 +57,12 @@ private:
     // --- Hashcat export: captured EAPOL/PMKID pcap -> .hc22000 ---
     bool loopExport(Context& ctx);
     int  exportHandshakes(Context& ctx);   // returns lines written, -1 on error
+
+    // --- Probe-request SSID harvest (which networks nearby devices seek) ---
+    void startProbe(Context& ctx);
+    void stopProbe(Context& ctx);
+    bool loopProbe(Context& ctx);
+    int  probeSel_ = 0;
 
     uint32_t lastUiMs_ = 0;
 };
