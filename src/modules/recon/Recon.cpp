@@ -66,9 +66,11 @@ void ReconModule::maybeBleScan(Context& ctx) {
     // Keep the screen alive during the (brief, blocking) BLE sweep.
     ctx.display->footer("+ BLE scan...");
     ctx.display->present();
+    // Hand the radio to BLE for the sweep (promiscuous WiFi starves it).
+    esp_wifi_set_promiscuous(false);
     BLEScan* scan = BLEDevice::getScan();
-    scan->setActiveScan(true); scan->setInterval(80); scan->setWindow(60);
-    BLEScanResults res = scan->start(1, false);   // 1s keeps WiFi recon responsive
+    scan->setActiveScan(true); scan->setInterval(160); scan->setWindow(160);
+    BLEScanResults res = scan->start(2, false);
     for (int i = 0; i < res.getCount(); ++i) {
         BLEAdvertisedDevice d = res.getDevice(i);
         int rssi = d.haveRSSI() ? d.getRSSI() : -100;
@@ -76,6 +78,8 @@ void ReconModule::maybeBleScan(Context& ctx) {
         upsert(*d.getAddress().getNative(), (int8_t)rssi, 1);
     }
     scan->clearResults();
+    esp_wifi_set_promiscuous(true);               // resume WiFi sniffing
+    esp_wifi_set_channel(channel_, WIFI_SECOND_CHAN_NONE);
 }
 
 void ReconModule::enter(Context& ctx) {

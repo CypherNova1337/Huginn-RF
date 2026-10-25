@@ -6,6 +6,7 @@
 #include "../../core/Config.h"
 #include "../../core/Logger.h"
 #include "../../hal/Vendor.h"
+#include <WiFi.h>
 #include <FS.h>
 
 #ifdef HUGINN_ENABLE_BLE_HID
@@ -25,7 +26,8 @@ void BleModule::enter(Context& ctx) {
 #ifdef HUGINN_ENABLE_BLE_HID
     view_ = View::Menu;
 #else
-    // Go straight to a live scan (no pointless 1-item menu).
+    // Free the 2.4 GHz radio for BLE — WiFi left on badly degrades scanning.
+    WiFi.mode(WIFI_OFF);
     BLEDevice::init("");
     devs_.clear(); scanSel_ = 0; lastScanMs_ = 0;
     view_ = View::Scan;
@@ -87,8 +89,8 @@ void BleModule::doScan(Context& ctx) {
     ctx.display->footer("scanning BLE...");
     ctx.display->present();
     BLEScan* scan = BLEDevice::getScan();
-    scan->setActiveScan(true); scan->setInterval(100); scan->setWindow(99);
-    BLEScanResults res = scan->start(2, false);
+    scan->setActiveScan(true); scan->setInterval(160); scan->setWindow(160);
+    BLEScanResults res = scan->start(3, false);
     for (int i = 0; i < res.getCount(); ++i) {
         BLEAdvertisedDevice d = res.getDevice(i);
         String addr = String(d.getAddress().toString().c_str());
