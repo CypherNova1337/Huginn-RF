@@ -1,14 +1,12 @@
 #include "SdCard.h"
 #include "../hal/board.h"
+#include "../hal/Bus.h"
 #include <SD.h>
-#include <SPI.h>
-
-static SPIClass s_sdSpi(HSPI);
 
 bool SdCard::begin() {
-    s_sdSpi.begin(SD_PIN_SCK, SD_PIN_MISO, SD_PIN_MOSI, SD_PIN_CS);
-    // Conservative clock first; SD on the Cardputer bus can be picky.
-    mounted_ = SD.begin(SD_PIN_CS, s_sdSpi, 20000000);
+    hal::spiBegin();                 // bring up the shared SD+LoRa SPI bus
+    // Conservative clock; SD on the Cardputer bus can be picky.
+    mounted_ = SD.begin(SD_PIN_CS, hal::spiBus(), 20000000);
     if (mounted_) {
         if (!SD.exists("/huginn")) SD.mkdir("/huginn");
         if (!SD.exists("/huginn/captures")) SD.mkdir("/huginn/captures");

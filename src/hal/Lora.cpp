@@ -1,18 +1,19 @@
 #include "Lora.h"
 #include "board.h"
+#include "Bus.h"
 #include <RadioLib.h>
 #include <SPI.h>
 
-static SPIClass s_loraSpi(FSPI);
 static SPISettings s_loraSpiSet(2000000, MSBFIRST, SPI_MODE0);
+// Shares the SD card's SPI bus (same SCK/MOSI/MISO, its own NSS).
 static SX1262 s_radio = new Module(LORA_PIN_NSS, LORA_PIN_DIO1, LORA_PIN_RST,
-                                   LORA_PIN_BUSY, s_loraSpi, s_loraSpiSet);
+                                   LORA_PIN_BUSY, hal::spiBus(), s_loraSpiSet);
 
 static volatile bool s_rxFlag = false;
 static void IRAM_ATTR onDio1() { s_rxFlag = true; }
 
 bool Lora::begin(float freqMhz, float bwKhz, uint8_t sf, int8_t txPowerDbm) {
-    s_loraSpi.begin(LORA_SPI_SCK, LORA_SPI_MISO, LORA_SPI_MOSI, LORA_PIN_NSS);
+    hal::spiBegin();                 // idempotent; SD usually did this already
     freqMhz_ = freqMhz;
     // begin(freq, bw, sf, cr, syncWord, power, preambleLen, tcxoVoltage)
     int st = s_radio.begin(freqMhz, bwKhz, sf, 5,
