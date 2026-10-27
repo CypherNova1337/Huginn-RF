@@ -18,7 +18,7 @@ static const PowerCode kPower[] = {
     {P_NEC,     0x04,   0x08, "LG"},
     {P_SONY12,  0x01,   0x15, "Sony"},
     {P_RC5,     0x00,   0x0C, "Philips"},
-    {P_NEC,     0x00,   0x17, "Vizio"},
+    {P_NEC,     0x04,   0x08, "Vizio"},
     {P_NEC,     0x08,   0x05, "TCL/Roku"},
     {P_NECX,  0x20DF,   0x10, "LG(ext)"},
     {P_NEC,     0x40,   0x90, "Panason."},

@@ -29,8 +29,8 @@ command: 0C 00 00 00
 name: Pwr_Vizio
 type: parsed
 protocol: NEC
-address: 00 00 00 00
-command: 17 00 00 00
+address: 04 00 00 00
+command: 08 00 00 00
 #
 name: Pwr_Insignia
 type: parsed

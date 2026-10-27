@@ -1,12 +1,29 @@
 Filetype: IR signals file
 Version: 1
-# LG TV (NEC). Common IRDB codes.
+# LG TV — full NEC set (address 0x04, the classic 0x20DF... frames).
+# Works on virtually every LG remote-controlled TV, including sets that ship
+# with the "Magic Remote": the Magic Remote's pointer/scroll is Bluetooth, but
+# the TV still accepts these standard LG IR commands for power, volume,
+# channels, navigation and input — so everything below drives a Magic-Remote TV
+# over IR just fine. The pointer itself can't be emulated over IR.
 #
 name: Power
 type: parsed
 protocol: NEC
 address: 04 00 00 00
 command: 08 00 00 00
+#
+name: Power_on
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: C4 00 00 00
+#
+name: Power_off
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: C5 00 00 00
 #
 name: Vol_up
 type: parsed
@@ -37,3 +54,135 @@ type: parsed
 protocol: NEC
 address: 04 00 00 00
 command: 01 00 00 00
+#
+name: Input
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 0B 00 00 00
+#
+name: Home
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 43 00 00 00
+#
+name: Menu
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 43 00 00 00
+#
+name: Settings
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: DB 00 00 00
+#
+name: Up
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 40 00 00 00
+#
+name: Down
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 41 00 00 00
+#
+name: Left
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 07 00 00 00
+#
+name: Right
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 06 00 00 00
+#
+name: Ok
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 44 00 00 00
+#
+name: Back
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 28 00 00 00
+#
+name: Exit
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 5B 00 00 00
+#
+name: Info
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: AA 00 00 00
+#
+name: 0
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 10 00 00 00
+#
+name: 1
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 11 00 00 00
+#
+name: 2
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 12 00 00 00
+#
+name: 3
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 13 00 00 00
+#
+name: 4
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 14 00 00 00
+#
+name: 5
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 15 00 00 00
+#
+name: 6
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 16 00 00 00
+#
+name: 7
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 17 00 00 00
+#
+name: 8
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 18 00 00 00
+#
+name: 9
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 19 00 00 00
